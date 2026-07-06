@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest a MemoBox capability or integration.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What agent memory problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should MemoBox do?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - schema
+        - backend
+        - retrieval
+        - CLI
+        - agent integration
+        - docs
+
