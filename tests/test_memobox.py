@@ -194,3 +194,168 @@ def test_cli_round_trip_and_raw_flag(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert main(["--store", str(store_dir), "search", "memobox", "--json"]) == 0
     assert json.loads(capsys.readouterr().out) == []
 
+
+def test_recall_searches_project_and_global_indexes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    project_store = JsonMemoBoxStore(tmp_path / "project")
+    global_store = JsonMemoBoxStore(tmp_path / "global")
+    project_store.add_mail(make_mail(1, subject="Project README polish", project="memobox"))
+    global_store.add_mail(make_mail(2, subject="Global README pattern", project="global"))
+
+    assert (
+        main(
+            [
+                "--store",
+                str(project_store.root),
+                "recall",
+                "README",
+                "--project",
+                "memobox",
+                "--global-store",
+                str(global_store.root),
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert {result["scope"] for result in payload["results"]} == {"project", "global"}
+    assert {result["entry"]["id"] for result in payload["results"]} == {"task-1", "task-2"}
+    assert "context" not in payload["results"][0]["entry"]
+
+
+def test_recall_tolerates_missing_global_store(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    project_store = JsonMemoBoxStore(tmp_path / "project")
+    project_store.add_mail(make_mail(1, subject="Project only memory", project="memobox"))
+
+    assert (
+        main(
+            [
+                "--store",
+                str(project_store.root),
+                "recall",
+                "Project only",
+                "--project",
+                "memobox",
+                "--global-store",
+                str(tmp_path / "missing-global"),
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert [(result["scope"], result["entry"]["id"]) for result in payload["results"]] == [("project", "task-1")]
+
+
+def test_remember_writes_standard_task_memory(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    store_dir = tmp_path / "project"
+    assert (
+        main(
+            [
+                "--store",
+                str(store_dir),
+                "remember",
+                "--subject",
+                "Ship agent workflow",
+                "--summary",
+                "Added recall remember promote curate workflow commands.",
+                "--project",
+                "memobox",
+                "--team",
+                "platform",
+                "--tags",
+                "workflow,agent",
+                "--body",
+                "Workflow turns MemoBox into an agent memory process.",
+                "--decision",
+                "Use project and global stores together.",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["project"] == "memobox"
+    assert payload["role"] == "memory-curator"
+    assert payload["status"] == "inbox"
+    assert payload["tags"] == ["task-memory", "workflow", "agent"]
+    assert payload["decisions"] == ["Use project and global stores together."]
+
+
+def test_promote_copies_project_memory_to_global_store(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    project_store = JsonMemoBoxStore(tmp_path / "project")
+    global_store_dir = tmp_path / "global"
+    project_store.add_mail(make_mail(1), raw_trace=[{"event": "evidence"}])
+
+    assert (
+        main(
+            [
+                "--store",
+                str(project_store.root),
+                "promote",
+                "task-1",
+                "--global-store",
+                str(global_store_dir),
+                "--with-raw",
+                "--archive-source",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    payload = json.loads(capsys.readouterr().out)
+    global_store = JsonMemoBoxStore(global_store_dir)
+    promoted = global_store.open_mail(payload["promoted_id"])
+    assert promoted.project == "global"
+    assert "promoted" in promoted.tags
+    assert promoted.source_refs[-1].ref.endswith(":task-1")
+    assert global_store.open_raw_trace(promoted.id) == [{"event": "evidence"}]
+    assert project_store.open_mail("task-1").status == "archived"
+
+
+def test_curate_duplicates_merge_stale_and_pin(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    store = JsonMemoBoxStore(tmp_path / "project")
+    store.add_mail(make_mail(1, subject="Duplicate memory", tags=["one"], decisions=["A"]))
+    store.add_mail(make_mail(2, subject="Duplicate memory", tags=["two"], decisions=["B"]))
+    store.add_mail(make_mail(3, subject="Old stale API note", tags=["api"]))
+    store.add_mail(make_mail(4, subject="Important launch memory", tags=["launch"]))
+
+    assert main(["--store", str(store.root), "curate", "duplicates", "--json"]) == 0
+    duplicates = json.loads(capsys.readouterr().out)
+    assert duplicates[0]["key"] == "agent-memory:duplicate memory"
+    assert {entry["id"] for entry in duplicates[0]["entries"]} == {"task-1", "task-2"}
+
+    assert (
+        main(
+            [
+                "--store",
+                str(store.root),
+                "curate",
+                "merge",
+                "task-1",
+                "task-2",
+                "--subject",
+                "Merged duplicate memory",
+                "--summary",
+                "Merged duplicate task memory.",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    merge_payload = json.loads(capsys.readouterr().out)
+    merged = store.open_mail(merge_payload["merged_id"])
+    assert "merged" in merged.tags
+    assert merged.decisions == ["A", "B"]
+    assert store.open_mail("task-1").status == "archived"
+    assert store.open_mail("task-2").status == "archived"
+
+    assert main(["--store", str(store.root), "curate", "stale", "Old stale", "--json"]) == 0
+    stale_payload = json.loads(capsys.readouterr().out)
+    assert stale_payload[0]["id"] == "task-3"
+    assert stale_payload[0]["status"] == "stale"
+
+    assert main(["--store", str(store.root), "curate", "pin", "launch", "--json"]) == 0
+    pin_payload = json.loads(capsys.readouterr().out)
+    assert pin_payload[0]["id"] == "task-4"
+    assert pin_payload[0]["status"] == "pinned"

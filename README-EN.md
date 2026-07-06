@@ -205,6 +205,73 @@ Recommended policy:
 - Open raw trace only when evidence is needed.
 - At task completion, let the main agent or a memory curator agent write a new Memory Mail.
 
+## Agent Workflow
+
+MemoBox now provides four lifecycle commands for agents:
+
+| Command | Trigger | Purpose |
+| --- | --- | --- |
+| `memobox recall` | Task start | Search project and global memory stores, returning index-level summaries only |
+| `memobox remember` | Task end | Write a standard Memory Mail for the completed task |
+| `memobox promote` | Reusable learning | Promote project memory into global memory |
+| `memobox curate` | Memory maintenance | Find duplicates, merge, mark stale, and pin important memories |
+
+Recommended project/global layout:
+
+```text
+your-project/.memobox        # current project memory
+~/.memobox-global            # reusable cross-project memory
+```
+
+You can also set the global store with an environment variable:
+
+```bash
+export MEMOBOX_GLOBAL_STORE="$HOME/.memobox-global"
+```
+
+Recall at task start:
+
+```bash
+memobox --store .memobox recall \
+  "high-star README homepage structure" \
+  --project memobox \
+  --global-store ~/.memobox-global \
+  --json
+```
+
+Remember at task completion:
+
+```bash
+memobox --store .memobox remember \
+  --subject "Improve MemoBox README homepage" \
+  --summary "Reworked README into a high-star style homepage with hero, demo, differentiation, workflow, and roadmap." \
+  --project memobox \
+  --team platform \
+  --role memory-curator \
+  --tags readme,github,open-source \
+  --body "The README now leads with index-first task memory, then shows a 30-second demo and agent workflow." \
+  --decision "Keep README.md Chinese-first and README-EN.md as the English version."
+```
+
+Promote reusable project memory:
+
+```bash
+memobox --store .memobox promote <memory-id> \
+  --global-store ~/.memobox-global \
+  --tag readme-pattern
+```
+
+Curate memory:
+
+```bash
+memobox --store .memobox curate duplicates --json
+memobox --store .memobox curate merge <id-a> <id-b> \
+  --subject "Merged README homepage guidance" \
+  --summary "Merged duplicate README optimization memories."
+memobox --store .memobox curate stale "old README guidance"
+memobox --store .memobox curate pin "important launch decision"
+```
+
 ## Who It Is For
 
 - Coding agents that need project decisions, paths, failures, and fixes.

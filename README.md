@@ -207,6 +207,73 @@ def open_memory_mail(memory_id: str) -> str:
 - 只有需要证据链时才打开 raw trace。
 - 任务结束时由主 Agent 或 memory curator agent 写入新的 Memory Mail。
 
+## Agent Workflow
+
+MemoBox 现在提供四个面向 Agent 生命周期的命令：
+
+| 命令 | 触发时机 | 作用 |
+| --- | --- | --- |
+| `memobox recall` | 任务开始 | 同时查询项目记忆和全局记忆，只返回索引级摘要 |
+| `memobox remember` | 任务结束 | 按标准 Memory Mail 格式写入本次任务记忆 |
+| `memobox promote` | 经验可复用时 | 把项目记忆提升为全局经验 |
+| `memobox curate` | 记忆整理时 | 查重、合并、标记 stale、置顶重要记忆 |
+
+推荐的项目级和全局级布局：
+
+```text
+your-project/.memobox        # 当前项目记忆
+~/.memobox-global            # 跨项目全局经验
+```
+
+也可以用环境变量指定全局记忆位置：
+
+```bash
+export MEMOBOX_GLOBAL_STORE="$HOME/.memobox-global"
+```
+
+任务开始时召回：
+
+```bash
+memobox --store .memobox recall \
+  "README 高星项目首页结构" \
+  --project memobox \
+  --global-store ~/.memobox-global \
+  --json
+```
+
+任务结束时记住：
+
+```bash
+memobox --store .memobox remember \
+  --subject "Improve MemoBox README homepage" \
+  --summary "Reworked README into a high-star style homepage with hero, demo, differentiation, workflow, and roadmap." \
+  --project memobox \
+  --team platform \
+  --role memory-curator \
+  --tags readme,github,open-source \
+  --body "The README now leads with index-first task memory, then shows a 30-second demo and agent workflow." \
+  --decision "Keep README.md Chinese-first and README-EN.md as the English version."
+```
+
+把项目经验提升为全局经验：
+
+```bash
+memobox --store .memobox promote <memory-id> \
+  --global-store ~/.memobox-global \
+  --tag readme-pattern
+```
+
+整理记忆：
+
+```bash
+memobox --store .memobox curate duplicates --json
+memobox --store .memobox curate merge <id-a> <id-b> \
+  --subject "Merged README homepage guidance" \
+  --summary "Merged duplicate README optimization memories."
+memobox --store .memobox curate stale "old README guidance"
+memobox --store .memobox curate pin "important launch decision"
+```
+
 ## 适合谁
 
 - 编码 Agent：记住项目决策、文件路径、失败原因和修复方式。
