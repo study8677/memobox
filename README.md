@@ -2,9 +2,9 @@
 
 # MemoBox
 
-**Index-first task memory for AI agents.**
+**An inbox-style memory layer for AI agents.**
 
-让 Agent 像读收件箱一样读长期记忆，而不是把历史对话整包塞进上下文。
+让 Agent 先扫“记忆标题”，再按需打开正文和证据，而不是把历史对话整包塞进上下文。
 
 [English](README-EN.md) · [文档结构](docs/schema.md) · [示例](examples/demo.py) · [GitHub](https://github.com/study8677/memobox)
 
@@ -12,6 +12,10 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](CHANGELOG.md)
+
+<br/>
+
+<img src="docs/assets/memobox-flow.svg" alt="MemoBox 邮箱式 index-first 记忆流程" width="860">
 
 </div>
 
@@ -30,6 +34,24 @@ MemoBox 的默认策略很简单：
 ```text
 先扫 index.json -> 命中后打开 mails/<id>.json -> 需要证据时才打开 traces/<id>.jsonl
 ```
+
+## 为什么是“邮箱”
+
+邮箱模型不是比喻装饰，而是 MemoBox 的核心交互：
+
+- **标题就是最好的摘要**：邮件标题天然要求短、明确、可扫描；Memory Mail 的 `subject` 也是 Agent 第一眼应该读的内容。
+- **收件箱就是轻量索引**：Agent 先扫 `index.json`，像人扫 inbox 一样判断哪封值得打开。
+- **正文是渐进式加载**：只有标题和摘要命中当前任务时，才打开 `mails/<id>.json`。
+- **附件/原文是证据层**：只有需要追溯时，才打开 `traces/<id>.jsonl`。
+- **状态就是记忆生命周期**：`pinned`、`archived`、`stale`、`needs_review` 对应置顶、归档、过期和待复核。
+
+这就是 MemoBox 的渐进式读取：
+
+```text
+标题 -> 摘要 -> 正文 -> 原始证据
+```
+
+这和 Agent skill 的工作方式相吻合：skill 不应该一次加载全部历史，而应该先读“标题层”的索引，再按需展开相关邮件。
 
 第一版只专注四个承诺：
 

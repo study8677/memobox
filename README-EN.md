@@ -2,9 +2,9 @@
 
 # MemoBox
 
-**Index-first task memory for AI agents.**
+**An inbox-style memory layer for AI agents.**
 
-Let agents read long-term memory like an inbox, instead of stuffing full conversation history into context.
+Let agents scan memory subjects first, then open bodies and evidence on demand, instead of stuffing full conversation history into context.
 
 [中文](README.md) · [Schema](docs/schema.md) · [Example](examples/demo.py) · [GitHub](https://github.com/study8677/memobox)
 
@@ -12,6 +12,10 @@ Let agents read long-term memory like an inbox, instead of stuffing full convers
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](CHANGELOG.md)
+
+<br/>
+
+<img src="docs/assets/memobox-flow.svg" alt="MemoBox index-first mailbox memory flow" width="860">
 
 </div>
 
@@ -29,6 +33,24 @@ MemoBox follows a simple default policy:
 
 ```text
 scan index.json -> open mails/<id>.json on match -> open traces/<id>.jsonl only for evidence
+```
+
+## Why Mailbox
+
+The mailbox model is not decorative. It is the core interaction model:
+
+- **The subject is the best summary**: email subjects are short, explicit, and scannable; `MemoryMail.subject` is the first memory layer an agent should read.
+- **The inbox is the lightweight index**: the agent scans `index.json` the way a human scans an inbox.
+- **The body is progressive disclosure**: only relevant subjects and summaries lead to `mails/<id>.json`.
+- **Attachments and originals are evidence**: `traces/<id>.jsonl` opens only when the agent needs proof.
+- **Status is memory lifecycle**: `pinned`, `archived`, `stale`, and `needs_review` map to inbox-style memory management.
+
+This matches how agent skills should load context: do not load all history first; scan the title layer, then expand the matching mail.
+
+MemoBox turns long agent history into progressive disclosure:
+
+```text
+subject -> summary -> memory body -> raw evidence
 ```
 
 The first version focuses on four promises:
