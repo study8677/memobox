@@ -1,0 +1,19 @@
+{
+  "name": "memobox-marketplace",
+  "owner": {
+    "name": "fanjingwen"
+  },
+  "metadata": {
+    "description": "MemoBox skills-only plugins for index-first task memory.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "memobox",
+      "source": "./",
+      "description": "Index-first task memory workflows for Claude Code agents using the MemoBox CLI.",
+      "version": "0.1.0",
+      "strict": true
+    }
+  ]
+}

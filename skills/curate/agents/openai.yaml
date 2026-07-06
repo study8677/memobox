@@ -1,0 +1,7 @@
+interface:
+  display_name: "Curate MemoBox"
+  short_description: "Clean up and promote memories"
+  brand_color: "#2563EB"
+  default_prompt: "Use $curate to clean up MemoBox memories."
+policy:
+  allow_implicit_invocation: true

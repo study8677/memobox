@@ -294,6 +294,53 @@ memobox --store .memobox curate stale "old README guidance"
 memobox --store .memobox curate pin "important launch decision"
 ```
 
+## Claude Code / Codex Plugin
+
+The first MemoBox plugin is a **skills-only plugin**. It does not start an MCP server or change CLI arguments. It teaches Claude Code and Codex when to call the existing `memobox` command.
+
+Install the CLI first:
+
+```bash
+python3 -m pip install --user git+https://github.com/study8677/memobox.git
+```
+
+Install in Claude Code:
+
+```bash
+claude plugin marketplace add study8677/memobox
+claude plugin install memobox@memobox-marketplace --scope user
+```
+
+Install in Codex:
+
+```bash
+codex plugin marketplace add study8677/memobox
+codex plugin add memobox@memobox-marketplace
+```
+
+After installation, use natural language:
+
+```text
+Use MemoBox to recall relevant memory for this project.
+Use MemoBox to remember this task outcome.
+Use MemoBox to curate duplicate memories.
+```
+
+Or invoke skills explicitly:
+
+```text
+Claude Code: /memobox:recall
+Claude Code: /memobox:remember
+Codex: $memobox:recall
+Codex: $memobox:remember
+```
+
+Defaults:
+
+- Project memory: `.memobox` in the current repository
+- Global memory: `${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}`
+- Recall scans the index first; bodies open only after relevant hits; raw traces open only when evidence is needed.
+
 ## Who It Is For
 
 - Coding agents that need project decisions, paths, failures, and fixes.
@@ -319,6 +366,7 @@ memobox --store .memobox curate pin "important launch decision"
 **Agent Integration**
 
 - [x] CLI: `init`, `add`, `search`, `show`, `status`, `raw`
+- [x] Claude Code / Codex skills-only plugin
 - [ ] Memory curator agent workflow
 - [ ] MCP server for Codex, Claude Desktop, Cursor
 

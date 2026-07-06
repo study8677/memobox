@@ -1,0 +1,19 @@
+{
+  "name": "memobox",
+  "description": "Index-first task memory workflows for Claude Code agents using the MemoBox CLI.",
+  "version": "0.1.0",
+  "author": {
+    "name": "fanjingwen"
+  },
+  "homepage": "https://github.com/study8677/memobox",
+  "repository": "https://github.com/study8677/memobox",
+  "license": "MIT",
+  "keywords": [
+    "agent-memory",
+    "skills",
+    "index-first",
+    "task-memory",
+    "developer-tools"
+  ],
+  "skills": "./skills/"
+}

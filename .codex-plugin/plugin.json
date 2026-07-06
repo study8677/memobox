@@ -1,0 +1,40 @@
+{
+  "name": "memobox",
+  "version": "0.1.0",
+  "description": "Index-first task memory workflows for coding agents using the MemoBox CLI.",
+  "author": {
+    "name": "fanjingwen",
+    "url": "https://github.com/study8677"
+  },
+  "homepage": "https://github.com/study8677/memobox",
+  "repository": "https://github.com/study8677/memobox",
+  "license": "MIT",
+  "keywords": [
+    "agent-memory",
+    "skills",
+    "index-first",
+    "task-memory",
+    "developer-tools"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "MemoBox",
+    "shortDescription": "Index-first task memory for coding agents",
+    "longDescription": "Use MemoBox skills to recall project and global task memories, write task-completion Memory Mail, and curate local-first JSON memory stores through the existing memobox CLI.",
+    "developerName": "fanjingwen",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/study8677/memobox",
+    "defaultPrompt": [
+      "Use MemoBox to recall relevant project memory.",
+      "Use MemoBox to remember this task outcome.",
+      "Use MemoBox to curate duplicate memories."
+    ],
+    "brandColor": "#2563EB",
+    "screenshots": []
+  }
+}

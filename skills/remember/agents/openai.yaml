@@ -1,0 +1,7 @@
+interface:
+  display_name: "Remember MemoBox"
+  short_description: "Write task-completion memory"
+  brand_color: "#2563EB"
+  default_prompt: "Use $remember to save this task outcome in MemoBox."
+policy:
+  allow_implicit_invocation: true

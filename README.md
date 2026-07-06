@@ -296,6 +296,53 @@ memobox --store .memobox curate stale "old README guidance"
 memobox --store .memobox curate pin "important launch decision"
 ```
 
+## Claude Code / Codex Plugin
+
+MemoBox 第一版插件是 **skills-only plugin**：它不启动 MCP server，也不改 CLI 参数，而是让 Claude Code 和 Codex 知道什么时候调用现有 `memobox` 命令。
+
+先安装 CLI：
+
+```bash
+python3 -m pip install --user git+https://github.com/study8677/memobox.git
+```
+
+Claude Code 安装：
+
+```bash
+claude plugin marketplace add study8677/memobox
+claude plugin install memobox@memobox-marketplace --scope user
+```
+
+Codex 安装：
+
+```bash
+codex plugin marketplace add study8677/memobox
+codex plugin add memobox@memobox-marketplace
+```
+
+安装后可以自然语言触发：
+
+```text
+用 MemoBox 查一下这个项目之前的相关记忆
+用 MemoBox 记录这次任务结论
+用 MemoBox 整理重复记忆
+```
+
+也可以显式调用 skill：
+
+```text
+Claude Code: /memobox:recall
+Claude Code: /memobox:remember
+Codex: $memobox:recall
+Codex: $memobox:remember
+```
+
+默认约定：
+
+- 项目记忆：当前仓库 `.memobox`
+- 全局记忆：`${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}`
+- 召回只读索引；只有摘要命中后才展开正文；只有需要证据时才打开 raw trace。
+
 ## 适合谁
 
 - 编码 Agent：记住项目决策、文件路径、失败原因和修复方式。
@@ -321,6 +368,7 @@ memobox --store .memobox curate pin "important launch decision"
 **Agent Integration**
 
 - [x] CLI：`init`、`add`、`search`、`show`、`status`、`raw`
+- [x] Claude Code / Codex skills-only plugin
 - [ ] Memory curator agent workflow
 - [ ] MCP server for Codex、Claude Desktop、Cursor
 
