@@ -24,13 +24,13 @@ memobox --store .memobox curate merge <id-a> <id-b> \
   --json
 ```
 
-Mark exact memory ids as stale after reviewing the inbox:
+Mark exact memory ids as stale after reviewing the index:
 
 ```bash
 memobox --store .memobox curate stale <id-a> <id-b> --json
 ```
 
-Pin exact memory ids after reviewing the inbox:
+Pin exact memory ids after reviewing the index:
 
 ```bash
 memobox --store .memobox curate pin <id-a> <id-b> --json

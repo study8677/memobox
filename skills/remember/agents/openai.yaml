@@ -1,7 +1,7 @@
 interface:
-  display_name: "Remember MemoBox"
-  short_description: "Write task-completion memory"
+  display_name: "Write MemoBox"
+  short_description: "Write model-readable memory"
   brand_color: "#2563EB"
-  default_prompt: "Use $remember to save this task outcome in MemoBox."
+  default_prompt: "Use $write-memory to write one MemoBox memory record when useful."
 policy:
   allow_implicit_invocation: true

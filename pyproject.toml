@@ -5,17 +5,17 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "memobox"
 version = "0.1.0"
-description = "Task-level MemoBox memory system for agents."
+description = "Model-readable MemoBox memory store."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "fanjingwen" }]
 keywords = [
-  "agent-memory",
-  "ai-agents",
+  "model-memory",
+  "ai-tools",
   "llm",
   "memory",
-  "retrieval",
+  "store",
   "jsonl",
   "cli",
   "developer-tools",

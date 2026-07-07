@@ -9,6 +9,5 @@
 ## Checklist
 
 - [ ] README examples are still accurate.
-- [ ] Search remains index-first unless this PR explicitly adds an opt-in backend.
+- [ ] Memory storage remains index-first; the model chooses whether and which ids to open.
 - [ ] `index.json` does not contain full bodies or raw traces.
-

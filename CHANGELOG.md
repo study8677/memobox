@@ -3,9 +3,9 @@
 ## 0.1.0
 
 - Initial MemoBox package.
-- Added task-level memory mail model.
+- Added model-readable memory mail model.
 - Added JSON-backed store with `index.json`, `mails/*.json`, and `traces/*.jsonl`.
-- Added index-first lexical search.
-- Added CLI commands: `init`, `add`, `search`, `show`, `status`, and `raw`.
-- Added agent workflow commands: `recall`, `remember`, `promote`, and `curate`.
-- Added tests proving search does not open memory bodies or raw traces.
+- Added index-first storage directory.
+- Added neutral CLI commands: `write`, `index`, `read`, `trace`, `status`, `promote`, and `curate`.
+- Kept legacy command aliases for existing users.
+- Added tests proving index reads do not open memory bodies or raw traces.

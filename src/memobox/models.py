@@ -195,10 +195,3 @@ def validate_importance(importance: str) -> None:
     if importance not in VALID_IMPORTANCE:
         allowed = ", ".join(sorted(VALID_IMPORTANCE))
         raise ValueError(f"Invalid importance {importance!r}. Expected one of: {allowed}")
-
-
-@dataclass(slots=True)
-class SearchResult:
-    entry: IndexEntry
-    score: float
-    matched_terms: list[str] = field(default_factory=list)

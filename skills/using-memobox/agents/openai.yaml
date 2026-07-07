@@ -1,7 +1,7 @@
 interface:
   display_name: "Using MemoBox"
-  short_description: "Run MemoBox memory workflows"
+  short_description: "Use the MemoBox memory store"
   brand_color: "#2563EB"
-  default_prompt: "Use $using-memobox to review the MemoBox index inbox and update task memory."
+  default_prompt: "Use $using-memobox to inspect, read, write, or maintain MemoBox memory records."
 policy:
   allow_implicit_invocation: true

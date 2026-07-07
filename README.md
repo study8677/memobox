@@ -2,9 +2,9 @@
 
 # MemoBox
 
-**An inbox-style memory layer for AI agents.**
+**A model-readable memory store for AI agents.**
 
-让 Agent 先扫“记忆标题”，再按需打开正文和证据，而不是把历史对话整包塞进上下文。
+给大模型看的本地优先记忆存储层：模型可以用 Bash 按需读取索引、正文和证据，而不是把历史对话整包塞进上下文。
 
 [English](README-EN.md) · [文档结构](docs/schema.md) · [示例](examples/demo.py) · [GitHub](https://github.com/study8677/memobox)
 
@@ -15,7 +15,7 @@
 
 <br/>
 
-<img src="docs/assets/memobox-flow.svg" alt="MemoBox 邮箱式 index-first 记忆流程" width="860">
+<img src="docs/assets/memobox-flow.svg" alt="MemoBox 邮箱式 index-first 记忆存储层" width="860">
 
 </div>
 
@@ -23,25 +23,25 @@
 
 ## MemoBox 是什么
 
-MemoBox 是一个给 AI Agent 用的**任务级记忆盒**。它把每个完成的任务保存成一封结构化“记忆邮件”，让 Agent 下次工作时先扫轻量索引，再按需展开正文和原始证据。
+MemoBox 是一个给大模型看的**记忆存储层**。它把有价值的工作记录保存成结构化“记忆邮件”，并暴露轻量索引、正文和原始证据三层文件。
 
-它解决的是工程 Agent 最常见的长期记忆问题：
+它解决的是工程大模型最常见的长期记忆问题：
 
-> 我们不缺历史记录，缺的是 Agent 能快速判断“哪段历史值得打开”的机制。
+> 我们不缺历史记录，缺的是一个模型可读、可审计、可按需展开的记忆表面。
 
-MemoBox 的默认策略很简单：
+MemoBox 的边界很简单：
 
 ```text
-打开 index.json 目录 -> 模型自己选择邮件 id -> 打开 mails/<id>.json -> 需要证据时才打开 traces/<id>.jsonl
+MemoBox 管理记忆存储 -> 大模型自己决定是否调用 -> 大模型自己决定读索引、正文还是证据
 ```
 
 ## 为什么是“邮箱”
 
 邮箱模型不是比喻装饰，而是 MemoBox 的核心交互：
 
-- **标题就是最好的摘要**：邮件标题天然要求短、明确、可扫描；Memory Mail 的 `subject` 也是 Agent 第一眼应该读的内容。
-- **收件箱就是轻量索引**：Agent 先扫 `index.json`，像人扫 inbox 一样判断哪封值得打开。
-- **正文是渐进式加载**：Agent 先看完整目录，再自己决定打开哪些 `mails/<id>.json`。
+- **标题就是最好的摘要**：邮件标题天然要求短、明确、可扫描；Memory Mail 的 `subject` 是模型最容易读取的第一层。
+- **收件箱就是轻量索引**：`index.json` 像 inbox 一样保存可扫描目录，但 MemoBox 不判断相关性。
+- **正文是渐进式加载**：模型如果认为需要更多上下文，可以再打开对应 `mails/<id>.json`。
 - **附件/原文是证据层**：只有需要追溯时，才打开 `traces/<id>.jsonl`。
 - **状态就是记忆生命周期**：`pinned`、`archived`、`stale`、`needs_review` 对应置顶、归档、过期和待复核。
 
@@ -51,32 +51,32 @@ MemoBox 的默认策略很简单：
 标题 -> 摘要 -> 正文 -> 原始证据
 ```
 
-这和 Agent skill 的工作方式相吻合：skill 不应该一次加载全部历史，而应该先读“标题层”的索引，再由模型决定展开哪些邮件。
+这和大模型使用 Bash/tool 的方式相吻合：存储层暴露清晰接口，模型自己决定什么时候读、读哪条、读多深。
 
 第一版只专注四个承诺：
 
-- **Index-first**：默认只打开 `index.json` 目录，避免把完整正文和证据塞进上下文。
-- **Task-level memory**：按一次完成任务沉淀决策、产物、风险和后续动作。
+- **Index-first**：先暴露 `index.json` 目录，避免把完整正文和证据塞进上下文。
+- **Memory mail**：用一封结构化记忆邮件沉淀决策、产物、风险和后续动作。
 - **Evidence-aware**：需要追溯时再打开 `Memory Mail` 或 `Raw Trace`。
 - **Local-first Python**：零运行时依赖，CLI + Python API，JSON 文件可审计。
 
 ## 30 秒看懂
 
 ```bash
-memobox --store .memobox add \
+memobox --store .memobox write \
   --subject "Fix slow /orders API" \
   --summary "Found N+1 query pattern and added eager loading." \
   --project api-platform \
   --team backend \
-  --role coding-agent \
+  --role model \
   --tags performance,n-plus-one \
   --body "Changed OrderService query path and added regression test." \
   --decision "Prefer query-level fix before introducing cache."
 
-memobox --store .memobox inbox --json
+memobox --store .memobox index --json
 ```
 
-Agent 看到的第一层不是完整历史，而是这样的目录条目：
+模型能读取的第一层不是完整历史，而是这样的目录条目：
 
 ```json
 {
@@ -88,42 +88,42 @@ Agent 看到的第一层不是完整历史，而是这样的目录条目：
 }
 ```
 
-MemoBox 不判断哪条相关。Agent 看目录后自己决定是否打开对应正文或 raw trace。
+MemoBox 不判断哪条相关。大模型自己决定是否打开对应正文或 raw trace。
 
 ## 为什么不是再做一个向量记忆库
 
 | 常见记忆系统 | MemoBox |
 | --- | --- |
-| 偏用户偏好、事实片段、语义召回 | 偏任务、决策、证据、后续动作 |
+| 偏用户偏好、事实片段、语义召回 | 偏工作记录、决策、证据、后续动作 |
 | 经常直接依赖 embedding 召回 | 默认 directory-first，可解释、可审计 |
 | 来源链不一定清晰 | 摘要 -> 正文 -> raw trace 可追溯 |
-| 适合个人助手长期偏好 | 适合工程 Agent 和多 Agent 协作 |
-| 历史越多越容易变成黑盒 | 像邮箱一样置顶、归档、标记过期 |
+| 适合个人助手长期偏好 | 适合工程大模型和多工具协作 |
+| 历史越多越容易变成黑盒 | 像邮箱一样可索引、置顶、归档、标记过期 |
 
-MemoBox 可以和 mem0、RAG、Obsidian、日志系统一起用。mem0 更适合记住用户偏好和事实，MemoBox 更适合保存 Agent 做过的工作。
+MemoBox 可以和 mem0、RAG、Obsidian、日志系统一起用。mem0 更适合记住用户偏好和事实，MemoBox 更适合保存模型可复查的工作记录。
 
 ## 核心能力
 
 | 能力 | 说明 |
 | --- | --- |
-| Index-first inbox | `inbox` / `recall` 默认只列 `index.json` 目录，不打开正文和 raw trace |
-| Task memory mail | 每个任务沉淀为一封可展开记忆邮件 |
+| Index-first store | `index` 默认只列 `index.json` 目录，不打开正文和 raw trace |
+| Memory mail | 每条重要记录沉淀为一封可展开记忆邮件 |
 | Raw trace on demand | 原始对话、命令、工具调用只在需要证据时读取 |
 | Team-ready metadata | 内置 `project`、`workspace`、`team`、`role`、`participants` |
-| Inbox workflow | 支持 `inbox`、`pinned`、`needs_review`、`archived`、`stale` |
-| Local-first CLI | 纯 Python、JSON 文件、易接入现有 Agent |
+| Memory maintenance | 支持 `pinned`、`needs_review`、`archived`、`stale` |
+| Local-first CLI | 纯 Python、JSON 文件，模型可用 Bash 直接调用 |
 
 ## 架构
 
 ```mermaid
 flowchart LR
-    A["Agent request"] --> B["Scan MemoBox Index<br/>index.json"]
-    B --> C{"Model chooses mail ids?"}
-    C -- "No" --> D["Continue without opening bodies"]
-    C -- "Yes" --> E["Open Memory Mail<br/>mails/&lt;id&gt;.json"]
+    A["Model decides to inspect memory"] --> B["Read MemoBox Index<br/>index.json"]
+    B --> C{"Need a body?"}
+    C -- "No" --> D["Continue with index-level context"]
+    C -- "Yes" --> E["Read Memory Mail<br/>mails/&lt;id&gt;.json"]
     E --> F{"Need evidence?"}
-    F -- "No" --> G["Use summary + body"]
-    F -- "Yes" --> H["Open Raw Trace<br/>traces/&lt;id&gt;.jsonl"]
+    F -- "No" --> G["Use body context"]
+    F -- "Yes" --> H["Read Raw Trace<br/>traces/&lt;id&gt;.jsonl"]
 ```
 
 MemoBox 的三层文件结构：
@@ -153,33 +153,33 @@ memobox --store .memobox init
 添加记忆：
 
 ```bash
-memobox --store .memobox add \
-  --subject "MemoBox index-first retrieval" \
-  --summary "Agent should scan the lightweight index before opening memory bodies." \
+memobox --store .memobox write \
+  --subject "MemoBox index-first storage" \
+  --summary "Models can read the lightweight index before opening memory bodies." \
   --project memobox \
   --team platform \
-  --role main-agent \
-  --tags memory,agent,index-first \
+  --role model \
+  --tags memory,storage,index-first \
   --body "Implemented index/body/raw-trace split and tests for lazy expansion." \
   --decision "Directory reads must never open raw traces by default."
 ```
 
-打开记忆收件箱目录：
+读取记忆索引：
 
 ```bash
-memobox --store .memobox inbox --json
+memobox --store .memobox index --json
 ```
 
-展开正文：
+读取正文：
 
 ```bash
-memobox --store .memobox show <memory-id> --json
+memobox --store .memobox read <memory-id> --json
 ```
 
-显式追溯 raw trace：
+显式读取 raw trace：
 
 ```bash
-memobox --store .memobox raw <memory-id> --json
+memobox --store .memobox trace <memory-id> --json
 ```
 
 ## Python API
@@ -192,14 +192,14 @@ store = JsonMemoBoxStore(".memobox")
 store.add_mail(
     MemoryMail(
         id="",
-        subject="Agent memory design",
-        summary="MemoBox stores task-level memory as index-first mail records.",
+        subject="Memory storage design",
+        summary="MemoBox stores model-readable memory as index-first mail records.",
         project="memobox",
         team="platform",
-        role="main-agent",
-        tags=["agent-memory", "index-first"],
+        role="model",
+        tags=["memory-store", "index-first"],
         context="Longer expandable body lives outside the index.",
-        decisions=["Use task-level memory instead of turn-level memory for v1."],
+        decisions=["Expose storage structure and let the model decide what to read."],
     )
 )
 
@@ -207,44 +207,19 @@ directory = store.list_index()
 mail = store.open_mail(directory[0].id)
 ```
 
-## Agent 接入方式
+## Storage Interface
 
-给 Agent 暴露三个基础工具就够了：
+MemoBox 暴露的是存储接口，不是召回编排器。大模型如果有 Bash/tool 能力，可以自己决定是否调用这些命令。
 
-```python
-def list_memobox_inbox() -> str:
-    entries = store.list_index()
-    return "\n".join(f"{entry.id}: {entry.subject} - {entry.summary}" for entry in entries)
-
-
-def open_memory_mail(memory_id: str) -> str:
-    mail = store.open_mail(memory_id)
-    return mail.context
-
-
-def open_raw_trace(memory_id: str) -> list[dict]:
-    return store.open_raw_trace(memory_id)
-```
-
-推荐策略：
-
-- 任务开始时先 `list_memobox_inbox`。
-- 模型自己扫描标题、摘要、标签、状态和时间。
-- 模型自己选择 id 后再 `open_memory_mail`。
-- 只有需要证据链时才打开 raw trace。
-- 任务结束时由主 Agent 或 memory curator agent 写入新的 Memory Mail。
-
-## Agent Workflow
-
-MemoBox 现在提供这些面向 Agent 生命周期的命令：
-
-| 命令 | 触发时机 | 作用 |
-| --- | --- | --- |
-| `memobox inbox` / `memobox map` | 任务开始 | 打开当前项目的完整 index 目录，正文和证据只给位置 |
-| `memobox recall` | 任务开始 | 打开项目记忆和全局记忆目录，模型自己决定打开哪些正文 |
-| `memobox remember` | 任务结束 | 按标准 Memory Mail 格式写入本次任务记忆 |
-| `memobox promote` | 经验可复用时 | 把项目记忆提升为全局经验 |
-| `memobox curate` | 记忆整理时 | 查重、合并、标记 stale、置顶重要记忆 |
+| 命令 | 作用 |
+| --- | --- |
+| `memobox write` | 写入一条 Memory Mail |
+| `memobox index` | 查看轻量记忆目录 |
+| `memobox read <id>` | 打开一条记忆正文 |
+| `memobox trace <id>` | 打开一条 raw trace 证据 |
+| `memobox status <id> <status>` | 更新记忆状态 |
+| `memobox promote <id>` | 复制可复用记忆到全局 store |
+| `memobox curate ...` | 查重、合并、置顶、标记 stale |
 
 推荐的项目级和全局级布局：
 
@@ -259,28 +234,49 @@ your-project/.memobox        # 当前项目记忆
 export MEMOBOX_GLOBAL_STORE="$HOME/.memobox-global"
 ```
 
-任务开始时打开目录：
+显式读取当前项目索引：
 
 ```bash
-memobox --store .memobox recall \
-  "README 高星项目首页结构" \
-  --project memobox \
+memobox --store .memobox index --json
+```
+
+显式同时读取项目和全局索引：
+
+```bash
+memobox --store .memobox index \
   --global-store ~/.memobox-global \
   --json
 ```
 
-任务结束时记住：
+写入一条记忆：
 
 ```bash
-memobox --store .memobox remember \
-  --subject "Improve MemoBox README homepage" \
-  --summary "Reworked README into a high-star style homepage with hero, demo, differentiation, workflow, and roadmap." \
+memobox --store .memobox write \
+  --subject "Improve MemoBox README positioning" \
+  --summary "Reframed MemoBox as a model-readable memory store instead of orchestration." \
   --project memobox \
   --team platform \
-  --role memory-curator \
-  --tags readme,github,open-source \
-  --body "The README now leads with index-first task memory, then shows a 30-second demo and agent workflow." \
-  --decision "Keep README.md Chinese-first and README-EN.md as the English version."
+  --role model \
+  --tags readme,storage,open-source \
+  --body "The public surface now leads with write/index/read/trace storage commands." \
+  --decision "Keep MemoBox out of relevance ranking and orchestration."
+```
+
+底层 Python API 也保持同样边界：
+
+```python
+def list_memobox_index() -> str:
+    entries = store.list_index()
+    return "\n".join(f"{entry.id}: {entry.subject} - {entry.summary}" for entry in entries)
+
+
+def open_memory_mail(memory_id: str) -> str:
+    mail = store.open_mail(memory_id)
+    return mail.context
+
+
+def open_raw_trace(memory_id: str) -> list[dict]:
+    return store.open_raw_trace(memory_id)
 ```
 
 把项目经验提升为全局经验：
@@ -304,7 +300,7 @@ memobox --store .memobox curate pin <id>
 
 ## Claude Code / Codex Plugin
 
-MemoBox 第一版插件是 **skills-only plugin**：它不启动 MCP server，也不改 CLI 参数，而是让 Claude Code 和 Codex 知道什么时候调用现有 `memobox` 命令。
+MemoBox 第一版插件是 **skills-only plugin**：它不启动 MCP server，也不改 CLI 参数，只把现有 `memobox` 存储命令暴露给 Claude Code 和 Codex。
 
 先安装 CLI：
 
@@ -330,31 +326,29 @@ codex plugin add memobox@memobox-marketplace
 
 ```text
 用 MemoBox 打开这个项目的记忆收件箱
-用 MemoBox 记录这次任务结论
+用 MemoBox 写入一条记忆
 用 MemoBox 整理重复记忆
 ```
 
 也可以显式调用 skill：
 
 ```text
-Claude Code: /memobox:recall
-Claude Code: /memobox:remember
-Codex: $memobox:recall
-Codex: $memobox:remember
+Claude Code: /memobox:using-memobox
+Codex: $using-memobox
 ```
 
 默认约定：
 
 - 项目记忆：当前仓库 `.memobox`
 - 全局记忆：`${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}`
-- 召回只读索引目录；模型自己选择要打开的正文；只有需要证据时才打开 raw trace。
+- MemoBox 只暴露索引、正文和证据；大模型自己决定是否调用和读到哪一层。
 
 ## 适合谁
 
-- 编码 Agent：记住项目决策、文件路径、失败原因和修复方式。
-- 运维 Agent：保存事故处理、命令证据、回滚步骤。
-- 研究 Agent：沉淀研究结论、来源和待验证假设。
-- 多 Agent 团队：共享任务级上下文，而不是共享整段聊天记录。
+- 编码模型：复查项目决策、文件路径、失败原因和修复方式。
+- 运维模型：保存事故处理、命令证据、回滚步骤。
+- 研究模型：沉淀研究结论、来源和待验证假设。
+- 多工具协作：共享结构化工作记录，而不是共享整段聊天记录。
 - 个人知识库用户：把对话历史整理成可维护的工作档案。
 
 ## Roadmap
@@ -365,25 +359,24 @@ Codex: $memobox:remember
 - [ ] SQLite backend
 - [ ] Schema migration
 
-**Retrieval**
+**Storage Interface**
 
-- [x] index-first inbox/map directory
-- [x] legacy lexical search command
-- [ ] 更好的 inbox 分组、分页和生命周期视图
+- [x] index-first storage directory
+- [x] neutral CLI：`write`、`index`、`read`、`trace`
+- [ ] 更好的 index 分组、分页和生命周期视图
 - [ ] stale memory detection
 
-**Agent Integration**
+**Model Integration**
 
-- [x] CLI：`init`、`add`、`inbox`、`map`、`recall`、`search`、`show`、`status`、`raw`
+- [x] CLI：`init`、`write`、`index`、`read`、`trace`、`status`、`promote`、`curate`
 - [x] Claude Code / Codex skills-only plugin
-- [ ] Memory curator agent workflow
 - [ ] MCP server for Codex、Claude Desktop、Cursor
 
 **UX / Trust**
 
 - [x] 中英文 README
 - [ ] Privacy redaction hooks
-- [ ] Web UI：像邮箱一样整理 Agent 记忆
+- [ ] Web UI：像邮箱一样整理模型可读记忆
 - [ ] Social preview and visual identity
 
 ## 开发
@@ -397,28 +390,27 @@ PYTHONPATH=src python3 examples/demo.py
 当前测试覆盖：
 
 - 10 个历史任务模拟写入。
-- 搜索只读取索引，不打开正文或 raw trace。
-- `inbox` / `map` 只输出目录和正文/raw trace 位置。
-- `recall` 同时打开项目和全局目录，不按 query 替模型过滤。
+- `index` 只输出目录和正文/raw trace 位置。
+- `index --global-store` 显式同时打开项目和全局目录，不替模型过滤。
 - 状态更新同步 index 和 body。
-- CLI 回归：add -> inbox -> show -> status。
+- CLI 回归：write -> index -> read -> trace -> status。
 
 ## 测试保障
 
 MemoBox 的核心承诺是 index-first，因此测试不只验证输出，还验证读取路径：
 
-- `inbox` / `recall` 只调用 `list_index()`。
+- `index` 只调用 `list_index()`。
 - 目录输出不包含 `context`、`decisions` 或 raw trace 内容。
-- `show` 才展开 `Memory Mail`。
-- `raw` 或显式参数才读取 `Raw Trace`。
+- `read` 才展开 `Memory Mail`。
+- `trace` 才读取 `Raw Trace`。
 
 ## 贡献
 
 MemoBox 还处在 alpha 阶段，适合参与的方向：
 
-- Agent 记忆评测集。
+- 模型可读记忆评测集。
 - mem0 / MCP / Obsidian 集成。
-- 更好的 inbox 组织、过期和归档策略。
+- 更好的 index 组织、过期和归档策略。
 - 团队协作权限和审计模型。
 - Web UI 和 social preview 设计。
 

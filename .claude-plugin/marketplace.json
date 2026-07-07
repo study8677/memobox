@@ -4,14 +4,14 @@
     "name": "fanjingwen"
   },
   "metadata": {
-    "description": "MemoBox skills-only plugins for index-first task memory.",
+    "description": "MemoBox skills-only plugins for model-readable memory stores.",
     "version": "0.1.0"
   },
   "plugins": [
     {
       "name": "memobox",
       "source": "./",
-      "description": "Index-first task memory workflows for Claude Code agents using the MemoBox CLI.",
+      "description": "Model-readable memory store using the MemoBox CLI.",
       "version": "0.1.0",
       "strict": true
     }

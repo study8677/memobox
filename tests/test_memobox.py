@@ -5,9 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from memobox.cli import main
-from memobox.models import IndexEntry, MemoryMail
-from memobox.search import MemoBoxSearcher
+from memobox.cli import build_parser, main
+from memobox.models import MemoryMail
 from memobox.store import JsonMemoBoxStore, MemoBoxStoreError
 
 
@@ -15,17 +14,17 @@ def make_mail(number: int, **overrides: object) -> MemoryMail:
     data = {
         "id": f"task-{number}",
         "subject": f"Task {number} memory routing",
-        "summary": f"Summary for task {number} about agent MemoBox index retrieval.",
-        "project": "agent-memory",
-        "workspace": "/workspace/agent-memory",
+        "summary": f"Summary for record {number} about MemoBox index storage surface.",
+        "project": "model-memory",
+        "workspace": "/workspace/model-memory",
         "team": "platform",
-        "role": "main-agent",
+        "role": "model",
         "tags": ["memory", "memobox", f"task-{number}"],
-        "participants": ["user", "main-agent"],
+        "participants": ["user", "model"],
         "importance": "normal",
         "status": "inbox",
         "confidence": 0.9,
-        "context": f"Long body for task {number}; search must not need this text.",
+        "context": f"Long body for task {number}; directory listings must not include this text.",
         "decisions": [f"Decision {number}"],
         "next_actions": [f"Next action {number}"],
     }
@@ -48,61 +47,6 @@ def test_ten_tasks_create_one_mail_each_and_keep_index_light(tmp_path: Path) -> 
     assert "Long body" not in index_payload
     assert "Decision" not in index_payload
     assert "raw_trace" not in index_payload
-
-
-def test_search_uses_index_only() -> None:
-    class SpyStore:
-        def __init__(self) -> None:
-            self.list_index_calls = 0
-            self.open_mail_calls = 0
-            self.open_raw_trace_calls = 0
-
-        def list_index(self) -> list[IndexEntry]:
-            self.list_index_calls += 1
-            return [
-                IndexEntry(
-                    id="task-1",
-                    subject="Agent memobox routing",
-                    summary="Index-first memory search for agents.",
-                    project="agent-memory",
-                    team="platform",
-                    role="main-agent",
-                    tags=["memobox", "memory"],
-                    status="inbox",
-                )
-            ]
-
-        def open_mail(self, mail_id: str) -> MemoryMail:
-            self.open_mail_calls += 1
-            raise AssertionError("search must not open memory mail bodies")
-
-        def open_raw_trace(self, mail_id: str) -> list[dict[str, object]]:
-            self.open_raw_trace_calls += 1
-            raise AssertionError("search must not open raw traces")
-
-    spy = SpyStore()
-    results = MemoBoxSearcher(spy).search("memobox memory", project="agent-memory")
-    assert [result.entry.id for result in results] == ["task-1"]
-    assert spy.list_index_calls == 1
-    assert spy.open_mail_calls == 0
-    assert spy.open_raw_trace_calls == 0
-
-
-def test_filters_and_status_defaults(tmp_path: Path) -> None:
-    store = JsonMemoBoxStore(tmp_path / "memobox")
-    store.add_mail(make_mail(1, project="agent-memory", team="platform", role="main-agent"))
-    store.add_mail(make_mail(2, project="billing", team="finance", role="worker"))
-    store.add_mail(make_mail(3, project="agent-memory", status="archived"))
-
-    searcher = MemoBoxSearcher(store)
-    results = searcher.search("memobox", project="agent-memory", team="platform", role="main-agent")
-    assert [result.entry.id for result in results] == ["task-1"]
-
-    default_results = searcher.search("memobox", project="agent-memory")
-    assert "task-3" not in {result.entry.id for result in default_results}
-
-    all_status_results = searcher.search("memobox", project="agent-memory", statuses=None)
-    assert "task-3" in {result.entry.id for result in all_status_results}
 
 
 def test_open_mail_and_raw_trace_are_explicit(tmp_path: Path) -> None:
@@ -137,7 +81,7 @@ def test_corrupt_index_raises_useful_error(tmp_path: Path) -> None:
         store.list_index()
 
 
-def test_cli_round_trip_and_raw_flag(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_round_trip_with_storage_commands(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     store_dir = tmp_path / "memobox"
     raw_file = tmp_path / "raw.jsonl"
     raw_file.write_text('{"event":"done"}\n', encoding="utf-8")
@@ -150,17 +94,17 @@ def test_cli_round_trip_and_raw_flag(tmp_path: Path, capsys: pytest.CaptureFixtu
             [
                 "--store",
                 str(store_dir),
-                "add",
+                "write",
                 "--subject",
                 "Agent memobox system",
                 "--summary",
-                "Index-first task memory for agents.",
+                "Index-first model-readable memory storage.",
                 "--project",
-                "agent-memory",
+                "model-memory",
                 "--team",
                 "platform",
                 "--role",
-                "main-agent",
+                "model",
                 "--tags",
                 "memory,memobox",
                 "--body",
@@ -175,32 +119,135 @@ def test_cli_round_trip_and_raw_flag(tmp_path: Path, capsys: pytest.CaptureFixtu
     )
     mail_id = capsys.readouterr().out.strip()
 
-    assert main(["--store", str(store_dir), "search", "memobox", "--json"]) == 0
-    search_payload = json.loads(capsys.readouterr().out)
-    assert search_payload[0]["entry"]["id"] == mail_id
-    assert "context" not in search_payload[0]["entry"]
+    assert main(["--store", str(store_dir), "index", "--json"]) == 0
+    index_payload = json.loads(capsys.readouterr().out)
+    index_entry = index_payload["entries"][0]
+    assert index_entry["id"] == mail_id
+    assert "context" not in index_entry
+    assert "decisions" not in index_entry
+    assert "raw_trace" in index_entry
+    assert index_entry["raw_trace"]["exists"] is True
+    assert " read " in index_entry["mail_body"]["open_command"]
+    assert " trace " in index_entry["raw_trace"]["open_command"]
 
-    assert main(["--store", str(store_dir), "show", mail_id, "--json"]) == 0
-    show_payload = json.loads(capsys.readouterr().out)
-    assert show_payload["context"] == "Expandable details live here."
-    assert "raw_trace" not in show_payload
+    assert main(["--store", str(store_dir), "read", mail_id, "--json"]) == 0
+    read_payload = json.loads(capsys.readouterr().out)
+    assert read_payload["context"] == "Expandable details live here."
+    assert "raw_trace" not in read_payload
 
-    assert main(["--store", str(store_dir), "show", mail_id, "--raw", "--json"]) == 0
-    show_raw_payload = json.loads(capsys.readouterr().out)
-    assert show_raw_payload["raw_trace"] == [{"event": "done"}]
+    assert main(["--store", str(store_dir), "trace", mail_id, "--json"]) == 0
+    trace_payload = json.loads(capsys.readouterr().out)
+    assert trace_payload == [{"event": "done"}]
 
     assert main(["--store", str(store_dir), "status", mail_id, "archived"]) == 0
     capsys.readouterr()
-    assert main(["--store", str(store_dir), "search", "memobox", "--json"]) == 0
-    assert json.loads(capsys.readouterr().out) == []
+    assert main(["--store", str(store_dir), "index", "--json"]) == 0
+    archived_index_payload = json.loads(capsys.readouterr().out)
+    assert archived_index_payload["entries"][0]["status"] == "archived"
+
+    assert main(["--store", str(store_dir), "read", mail_id, "--json"]) == 0
+    archived_read_payload = json.loads(capsys.readouterr().out)
+    assert archived_read_payload["status"] == "archived"
 
 
-def test_inbox_lists_index_directory_without_judging_relevance(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_search_command_is_removed() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        main(["search", "memobox"])
+    assert exc_info.value.code == 2
+
+
+def test_public_help_hides_legacy_commands() -> None:
+    help_text = build_parser().format_help()
+    assert "{init,write,index,read,status,trace,promote,curate}" in help_text
+    assert "Write one Memory Mail record." in help_text
+    assert "List memory index records without judging relevance." in help_text
+    assert "{init,write,add" not in help_text
+    assert "==SUPPRESS==" not in help_text
+    assert "recall" not in help_text
+    assert "remember" not in help_text
+
+
+def test_legacy_commands_remain_available(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    project_store = JsonMemoBoxStore(tmp_path / "project")
+    global_store = JsonMemoBoxStore(tmp_path / "global")
+    global_store.add_mail(make_mail(2, subject="Global storage pattern", project="global"))
+    raw_file = tmp_path / "raw.jsonl"
+    raw_file.write_text('{"event":"legacy"}\n', encoding="utf-8")
+
+    assert (
+        main(
+            [
+                "--store",
+                str(project_store.root),
+                "add",
+                "--subject",
+                "Legacy add command",
+                "--summary",
+                "Compatibility write path.",
+                "--raw-trace-file",
+                str(raw_file),
+            ]
+        )
+        == 0
+    )
+    mail_id = capsys.readouterr().out.strip()
+
+    assert main(["--store", str(project_store.root), "inbox", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["entries"][0]["id"] == mail_id
+
+    assert main(["--store", str(project_store.root), "map", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["entries"][0]["id"] == mail_id
+
+    assert main(["--store", str(project_store.root), "show", mail_id, "--raw", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["raw_trace"] == [{"event": "legacy"}]
+
+    assert main(["--store", str(project_store.root), "raw", mail_id, "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == [{"event": "legacy"}]
+
+    assert (
+        main(
+            [
+                "--store",
+                str(project_store.root),
+                "recall",
+                "storage",
+                "--global-store",
+                str(global_store.root),
+                "--json",
+            ]
+        )
+        == 0
+    )
+    recall_payload = json.loads(capsys.readouterr().out)
+    assert {store_payload["scope"] for store_payload in recall_payload["stores"]} == {"project", "global"}
+
+    assert (
+        main(
+            [
+                "--store",
+                str(project_store.root),
+                "remember",
+                "--subject",
+                "Legacy remember command",
+                "--summary",
+                "Compatibility memory write.",
+                "--project",
+                "memobox",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    remember_payload = json.loads(capsys.readouterr().out)
+    assert remember_payload["tags"] == ["task-memory"]
+
+
+def test_index_lists_directory_without_judging_relevance(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     store = JsonMemoBoxStore(tmp_path / "project")
     store.add_mail(make_mail(1, subject="Project README polish", project="memobox"))
     store.add_mail(make_mail(2, subject="Archived deploy note", project="memobox", status="archived"))
 
-    assert main(["--store", str(store.root), "inbox", "--json"]) == 0
+    assert main(["--store", str(store.root), "index", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["scope"] == "project"
@@ -214,12 +261,12 @@ def test_inbox_lists_index_directory_without_judging_relevance(tmp_path: Path, c
     assert payload["entries"][0]["raw_trace"]["path"].endswith(".jsonl")
 
 
-def test_inbox_paginates_without_filtering(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_index_paginates_without_filtering(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     store = JsonMemoBoxStore(tmp_path / "project")
     for index in range(3):
         store.add_mail(make_mail(index))
 
-    assert main(["--store", str(store.root), "map", "--page", "2", "--per-page", "2", "--json"]) == 0
+    assert main(["--store", str(store.root), "index", "--page", "2", "--per-page", "2", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["total_entries"] == 3
@@ -230,7 +277,7 @@ def test_inbox_paginates_without_filtering(tmp_path: Path, capsys: pytest.Captur
     assert payload["has_next"] is False
 
 
-def test_recall_opens_project_and_global_inboxes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_index_can_explicitly_include_global_store(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     project_store = JsonMemoBoxStore(tmp_path / "project")
     global_store = JsonMemoBoxStore(tmp_path / "global")
     project_store.add_mail(make_mail(1, subject="Project README polish", project="memobox"))
@@ -242,10 +289,7 @@ def test_recall_opens_project_and_global_inboxes(tmp_path: Path, capsys: pytest.
             [
                 "--store",
                 str(project_store.root),
-                "recall",
-                "README",
-                "--project",
-                "memobox",
+                "index",
                 "--global-store",
                 str(global_store.root),
                 "--json",
@@ -254,17 +298,16 @@ def test_recall_opens_project_and_global_inboxes(tmp_path: Path, capsys: pytest.
         == 0
     )
     payload = json.loads(capsys.readouterr().out)
-    assert payload["task"] == "README"
-    assert payload["task_metadata"]["project"] == "memobox"
     assert {store_payload["scope"] for store_payload in payload["stores"]} == {"project", "global"}
     entries_by_scope = {store_payload["scope"]: store_payload["entries"] for store_payload in payload["stores"]}
     assert {entry["id"] for entry in entries_by_scope["project"]} == {"task-1"}
     assert {entry["id"] for entry in entries_by_scope["global"]} == {"task-2", "task-3"}
     assert all("score" not in entry for entries in entries_by_scope.values() for entry in entries)
+    assert all("matched_terms" not in entry for entries in entries_by_scope.values() for entry in entries)
     assert all("context" not in entry for entries in entries_by_scope.values() for entry in entries)
 
 
-def test_recall_tolerates_missing_global_store(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_index_tolerates_missing_global_store(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     project_store = JsonMemoBoxStore(tmp_path / "project")
     project_store.add_mail(make_mail(1, subject="Project only memory", project="memobox"))
 
@@ -273,10 +316,7 @@ def test_recall_tolerates_missing_global_store(tmp_path: Path, capsys: pytest.Ca
             [
                 "--store",
                 str(project_store.root),
-                "recall",
-                "Project only",
-                "--project",
-                "memobox",
+                "index",
                 "--global-store",
                 str(tmp_path / "missing-global"),
                 "--json",
@@ -290,7 +330,7 @@ def test_recall_tolerates_missing_global_store(tmp_path: Path, capsys: pytest.Ca
     assert entries_by_scope["global"] == []
 
 
-def test_remember_writes_standard_task_memory(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_legacy_remember_writes_standard_task_memory(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     store_dir = tmp_path / "project"
     assert (
         main(
@@ -299,17 +339,17 @@ def test_remember_writes_standard_task_memory(tmp_path: Path, capsys: pytest.Cap
                 str(store_dir),
                 "remember",
                 "--subject",
-                "Ship agent workflow",
+                "Ship memory storage surface",
                 "--summary",
-                "Added recall remember promote curate workflow commands.",
+                "Added compatibility command for standard task memory writes.",
                 "--project",
                 "memobox",
                 "--team",
                 "platform",
                 "--tags",
-                "workflow,agent",
+                "storage,model",
                 "--body",
-                "Workflow turns MemoBox into an agent memory process.",
+                "MemoBox remains a memory store for model-directed use.",
                 "--decision",
                 "Use project and global stores together.",
                 "--json",
@@ -321,7 +361,7 @@ def test_remember_writes_standard_task_memory(tmp_path: Path, capsys: pytest.Cap
     assert payload["project"] == "memobox"
     assert payload["role"] == "memory-curator"
     assert payload["status"] == "inbox"
-    assert payload["tags"] == ["task-memory", "workflow", "agent"]
+    assert payload["tags"] == ["task-memory", "storage", "model"]
     assert payload["decisions"] == ["Use project and global stores together."]
 
 
@@ -365,7 +405,7 @@ def test_curate_duplicates_merge_stale_and_pin(tmp_path: Path, capsys: pytest.Ca
 
     assert main(["--store", str(store.root), "curate", "duplicates", "--json"]) == 0
     duplicates = json.loads(capsys.readouterr().out)
-    assert duplicates[0]["key"] == "agent-memory:duplicate memory"
+    assert duplicates[0]["key"] == "model-memory:duplicate memory"
     assert {entry["id"] for entry in duplicates[0]["entries"]} == {"task-1", "task-2"}
 
     assert (

@@ -1,15 +1,15 @@
 <svg width="1120" height="600" viewBox="0 0 1120 600" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">MemoBox index-first mailbox memory flow</title>
-  <desc id="desc">Agent reviews the memory inbox first, chooses memory mail ids, then opens raw trace only when evidence is needed.</desc>
+  <title id="title">MemoBox index-first memory store</title>
+  <desc id="desc">MemoBox exposes an index-first memory store; the model decides whether to read bodies or raw trace evidence.</desc>
   <rect width="1120" height="600" rx="28" fill="#F8FAFC"/>
   <rect x="36" y="36" width="1048" height="528" rx="24" fill="white" stroke="#CBD5E1"/>
 
   <text x="72" y="92" fill="#0F172A" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="750">MemoBox</text>
-  <text x="72" y="124" fill="#475569" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="17">Index-first task memory for AI agents</text>
+  <text x="72" y="124" fill="#475569" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="17">Index-first memory store for models</text>
 
   <rect x="72" y="168" width="250" height="120" rx="18" fill="#ECFEFF" stroke="#06B6D4"/>
-  <text x="104" y="210" fill="#0E7490" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="700">1. Review inbox</text>
-  <text x="104" y="242" fill="#164E63" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">Agent reviews titles</text>
+  <text x="104" y="210" fill="#0E7490" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="700">1. Read index</text>
+  <text x="104" y="242" fill="#164E63" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">Model reads titles</text>
   <text x="104" y="266" fill="#164E63" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15">and summaries only</text>
 
   <rect x="72" y="326" width="250" height="120" rx="18" fill="#F0FDF4" stroke="#22C55E"/>
@@ -57,5 +57,5 @@
   <text x="932" y="312" fill="#475569" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="13">if evidence needed</text>
 
   <rect x="72" y="494" width="972" height="38" rx="19" fill="#0F172A"/>
-  <text x="260" y="519" fill="white" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="16" font-weight="700">Subject is the first memory layer. Body and trace are progressive disclosure.</text>
+  <text x="260" y="519" fill="white" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="16" font-weight="700">MemoBox stores memory. The model decides what to read.</text>
 </svg>

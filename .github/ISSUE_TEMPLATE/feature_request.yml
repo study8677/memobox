@@ -24,8 +24,7 @@ body:
       options:
         - schema
         - backend
-        - retrieval
+        - storage interface
         - CLI
-        - agent integration
+        - model integration
         - docs
-

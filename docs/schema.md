@@ -11,7 +11,7 @@ Important fields:
 - `schema_version`: integer schema version.
 - `id`: memory mail id.
 - `subject`: short title.
-- `summary`: compact scan text for agents.
+- `summary`: compact scan text for models.
 - `project`, `workspace`, `team`, `role`: routing fields.
 - `tags`, `participants`: routing, grouping, display, and model-selection signals.
 - `importance`: `low`, `normal`, `high`, or `critical`.
@@ -19,13 +19,13 @@ Important fields:
 - `confidence`: summary reliability from `0.0` to `1.0`.
 - `created_at`, `updated_at`: UTC ISO 8601 timestamps.
 
-The index must not contain full task bodies, raw traces, or long evidence payloads.
+The index must not contain full memory bodies, raw traces, or long evidence payloads.
 
 ## `mails/<id>.json`
 
 The memory body extends index metadata with:
 
-- `context`: expandable task background and result.
+- `context`: expandable background and result.
 - `decisions`: confirmed decisions.
 - `artifacts`: files, URLs, PRs, deploys, reports, or other evidence.
 - `next_actions`: remaining follow-up work.
@@ -36,4 +36,4 @@ The memory body extends index metadata with:
 
 Raw trace is optional JSONL. It can store conversation turns, tool calls, terminal evidence, or external event records.
 
-Agents should review the index directory first, choose specific memory ids to open, and only open raw trace when the selected body is insufficient.
+Models can read the index directory, choose specific memory ids to open, and read raw trace only when the selected body is insufficient.

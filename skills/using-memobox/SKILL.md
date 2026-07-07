@@ -1,11 +1,11 @@
 ---
 name: using-memobox
-description: Use when a task mentions MemoBox, memory, recall, remember, project history, task history, decisions, evidence, or memory curation for an agent workflow.
+description: Use when the model chooses to inspect, read, write, or maintain MemoBox memory records through Bash.
 ---
 
 # Using MemoBox
 
-Use MemoBox as an index-first task memory layer through the existing `memobox` CLI. Do not assume an MCP server exists.
+Use MemoBox as an index-first, model-readable memory store through the existing `memobox` CLI. Do not assume an MCP server exists.
 
 ## Preconditions
 
@@ -14,23 +14,30 @@ Use MemoBox as an index-first task memory layer through the existing `memobox` C
 - Use the project store at `.memobox` unless the user gives another store.
 - Use `${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}` as the global store.
 
-## Workflow
+## Storage Commands
 
-1. At task start, use the `recall` skill or run:
+1. When memory may help, inspect the index:
    ```bash
-   memobox --store .memobox recall "<task context>" --project "<project>" --json
+   memobox --store .memobox index --json
    ```
-2. Read only the returned index-level inbox directories first.
-3. Use the subjects, summaries, tags, status, timestamps, and body/raw trace paths to choose memory ids yourself.
-4. Open a memory body only for chosen ids:
+   Add `--global-store "${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}"` only when the model explicitly wants the global store too.
+2. Use subjects, summaries, tags, status, timestamps, and body/raw trace paths to decide which ids to read.
+3. Read a memory body only for chosen ids:
    ```bash
-   memobox --store .memobox show <memory-id> --json
+   memobox --store .memobox read <memory-id> --json
    ```
-5. Open raw trace only when the user asks for evidence or the task requires proof:
+4. Read raw trace only when evidence is required:
    ```bash
-   memobox --store .memobox raw <memory-id> --json
+   memobox --store .memobox trace <memory-id> --json
    ```
-6. At task completion, use the `remember` skill to write one task-level Memory Mail.
-7. For duplicates, stale memories, pinned memories, or global promotion, use the `curate` skill.
+5. Write one memory record when there is useful context to preserve:
+   ```bash
+   memobox --store .memobox write \
+     --subject "<short title>" \
+     --summary "<index-level summary>" \
+     --project "<project>" \
+     --body "<useful context, decisions, artifacts, risks, follow-ups>"
+   ```
+6. For duplicates, stale memories, pinned memories, or global promotion, use `curate`, `status`, or `promote`.
 
 Keep summaries short, cite concrete files or commands in the body, and avoid storing secrets.

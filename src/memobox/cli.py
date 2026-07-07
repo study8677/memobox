@@ -9,15 +9,14 @@ from pathlib import Path
 from typing import Any
 
 from memobox.models import Artifact, MemoryMail, SourceRef, VALID_STATUSES
-from memobox.search import DEFAULT_ACTIVE_STATUSES, MemoBoxSearcher
 from memobox.store import JsonMemoBoxStore
 
 MEMORY_POLICY = [
-    "MemoBox exposes memory structure; the model chooses which ids to open.",
-    "Read the index directory first. It contains subjects, summaries, tags, status, timestamps, and body/evidence locations.",
-    "Open Memory Mail bodies only when the model chooses specific ids.",
-    "Open raw traces only when evidence is required.",
-    "Do not treat directory order, pagination, or legacy search scores as relevance decisions.",
+    "MemoBox is a model-readable memory store, not a relevance or orchestration engine.",
+    "The index contains subjects, summaries, tags, status, timestamps, and body/evidence locations.",
+    "The model decides whether to call MemoBox, which ids to read, and whether evidence is needed.",
+    "Trace records are exposed only through an explicit trace read.",
+    "Do not treat directory order or pagination as relevance decisions.",
 ]
 MEMORY_STRUCTURE = {
     "index": {
@@ -42,12 +41,12 @@ MEMORY_STRUCTURE = {
     },
     "mail_body": {
         "path_template": "mails/<id>.json",
-        "open_with": "memobox --store <store> show <id> --json",
+        "open_with": "memobox --store <store> read <id> --json",
         "contains": ["context", "decisions", "artifacts", "next_actions", "risks", "source_refs"],
     },
     "raw_trace": {
         "path_template": "traces/<id>.jsonl",
-        "open_with": "memobox --store <store> raw <id> --json",
+        "open_with": "memobox --store <store> trace <id> --json",
         "contains": ["optional raw conversation, tool, terminal, or external evidence events"],
     },
 }
@@ -63,18 +62,16 @@ def main(argv: list[str] | None = None) -> int:
             store.initialize()
             print(f"initialized {store.root}")
             return 0
-        if args.command == "add":
-            return cmd_add(store, args)
-        if args.command == "search":
-            return cmd_search(store, args)
-        if args.command in {"inbox", "map"}:
-            return cmd_inbox(store, args)
-        if args.command == "show":
-            return cmd_show(store, args)
+        if args.command in {"add", "write"}:
+            return cmd_write(store, args)
+        if args.command in {"inbox", "map", "index"}:
+            return cmd_index(store, args)
+        if args.command in {"show", "read"}:
+            return cmd_read(store, args)
         if args.command == "status":
             return cmd_status(store, args)
-        if args.command == "raw":
-            return cmd_raw(store, args)
+        if args.command in {"raw", "trace"}:
+            return cmd_trace(store, args)
         if args.command == "recall":
             return cmd_recall(store, args)
         if args.command == "remember":
@@ -94,54 +91,28 @@ def main(argv: list[str] | None = None) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="memobox", description="MemoBox")
     parser.add_argument("--store", default=".memobox", help="MemoBox storage directory.")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    public_commands = "{init,write,index,read,status,trace,promote,curate}"
+    subparsers = parser.add_subparsers(dest="command", required=True, metavar=public_commands)
 
     subparsers.add_parser("init", help="Initialize a memobox store.")
 
-    add = subparsers.add_parser("add", help="Add one task-level memory mail.")
-    add.add_argument("--subject", required=True)
-    add.add_argument("--summary", required=True)
-    add.add_argument("--project", default="")
-    add.add_argument("--workspace", default="")
-    add.add_argument("--team", default="")
-    add.add_argument("--role", default="")
-    add.add_argument("--tags", default="", help="Comma-separated tags.")
-    add.add_argument("--participants", default="", help="Comma-separated participants.")
-    add.add_argument("--importance", default="normal", choices=["low", "normal", "high", "critical"])
-    add.add_argument("--status", default="inbox", choices=sorted(VALID_STATUSES))
-    add.add_argument("--confidence", type=float, default=1.0)
-    add.add_argument("--body", default="", help="Expandable memory body/context.")
-    add.add_argument("--body-file", default="", help="Read expandable memory body from file.")
-    add.add_argument("--decision", action="append", default=[])
-    add.add_argument("--next-action", action="append", default=[])
-    add.add_argument("--risk", action="append", default=[])
-    add.add_argument("--artifact", action="append", default=[], help="KIND:URI")
-    add.add_argument("--source-ref", action="append", default=[], help="KIND:REF")
-    add.add_argument("--raw-trace-file", default="", help="JSONL or text file to attach as raw trace.")
-    add.add_argument("--json", action="store_true", help="Print JSON.")
+    write = subparsers.add_parser("write", help="Write one Memory Mail record.")
+    add_write_arguments(write)
 
-    search = subparsers.add_parser("search", help="Legacy lexical search of the lightweight index.")
-    search.add_argument("query", nargs="?", default="")
-    search.add_argument("--project")
-    search.add_argument("--workspace")
-    search.add_argument("--team")
-    search.add_argument("--role")
-    search.add_argument(
-        "--status",
-        action="append",
-        choices=sorted(VALID_STATUSES),
-        help="Repeat to include specific statuses. Defaults to inbox/pinned/needs_review.",
-    )
-    search.add_argument("--all-statuses", action="store_true")
-    search.add_argument("--limit", type=int, default=5)
-    search.add_argument("--json", action="store_true")
+    add = add_hidden_parser(subparsers, "add")
+    add_write_arguments(add)
 
-    add_inbox_parser(subparsers, "inbox", "Open the MemoBox index directory for the model to inspect.")
-    add_inbox_parser(subparsers, "map", "Alias for inbox; print the memory map without judging relevance.")
+    add_index_parser(subparsers, "index", "List memory index records without judging relevance.")
+    add_index_parser(subparsers, "inbox", argparse.SUPPRESS, hidden=True)
+    add_index_parser(subparsers, "map", argparse.SUPPRESS, hidden=True)
 
-    show = subparsers.add_parser("show", help="Open one memory mail body.")
+    read = subparsers.add_parser("read", help="Read one Memory Mail body.")
+    read.add_argument("id")
+    read.add_argument("--json", action="store_true")
+
+    show = add_hidden_parser(subparsers, "show")
     show.add_argument("id")
-    show.add_argument("--raw", action="store_true", help="Also include raw trace.")
+    show.add_argument("--raw", action="store_true", help=argparse.SUPPRESS)
     show.add_argument("--json", action="store_true")
 
     status = subparsers.add_parser("status", help="Update memory mail status.")
@@ -149,14 +120,15 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("status", choices=sorted(VALID_STATUSES))
     status.add_argument("--json", action="store_true")
 
-    raw = subparsers.add_parser("raw", help="Open raw trace explicitly.")
+    trace = subparsers.add_parser("trace", help="Read raw trace evidence for one memory.")
+    trace.add_argument("id")
+    trace.add_argument("--json", action="store_true")
+
+    raw = add_hidden_parser(subparsers, "raw")
     raw.add_argument("id")
     raw.add_argument("--json", action="store_true")
 
-    recall = subparsers.add_parser(
-        "recall",
-        help="Open project and global memory indexes for the model to inspect.",
-    )
+    recall = add_hidden_parser(subparsers, "recall")
     recall.add_argument("task", nargs="?", default="", help="Optional task text; never used to filter memories.")
     recall.add_argument("--project", help="Optional task metadata for the model; not used as a filter.")
     recall.add_argument("--workspace", help="Optional task metadata for the model; not used as a filter.")
@@ -170,7 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
     recall.add_argument("--all-statuses", action="store_true", help=argparse.SUPPRESS)
     recall.add_argument("--json", action="store_true")
 
-    remember = subparsers.add_parser("remember", help="Write a standard task-completion Memory Mail.")
+    remember = add_hidden_parser(subparsers, "remember")
     remember.add_argument("--subject", required=True)
     remember.add_argument("--summary", required=True)
     remember.add_argument("--project", required=True)
@@ -191,7 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
     remember.add_argument("--raw-trace-file", default="")
     remember.add_argument("--json", action="store_true")
 
-    promote = subparsers.add_parser("promote", help="Promote one project memory into the global MemoBox.")
+    promote = subparsers.add_parser("promote", help="Copy one reusable memory into a global MemoBox store.")
     promote.add_argument("id")
     promote.add_argument("--global-store", default=default_global_store())
     promote.add_argument("--target-project", default="global")
@@ -200,7 +172,7 @@ def build_parser() -> argparse.ArgumentParser:
     promote.add_argument("--archive-source", action="store_true", help="Archive the source project memory after promotion.")
     promote.add_argument("--json", action="store_true")
 
-    curate = subparsers.add_parser("curate", help="Curate memory: find duplicates, merge, mark stale, or pin.")
+    curate = subparsers.add_parser("curate", help="Maintain memory records: find duplicates, merge, mark stale, or pin.")
     curate_subparsers = curate.add_subparsers(dest="curate_command", required=True)
 
     duplicates = curate_subparsers.add_parser("duplicates", help="List likely duplicate memories by project and subject.")
@@ -234,14 +206,55 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def add_inbox_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser], name: str, help_text: str) -> None:
-    inbox = subparsers.add_parser(name, help=help_text)
-    inbox.add_argument("--page", type=int, default=1, help="Directory page to print.")
-    inbox.add_argument("--per-page", type=int, default=200, help="Entries per page.")
-    inbox.add_argument("--json", action="store_true")
+def add_write_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--subject", required=True)
+    parser.add_argument("--summary", required=True)
+    parser.add_argument("--project", default="")
+    parser.add_argument("--workspace", default="")
+    parser.add_argument("--team", default="")
+    parser.add_argument("--role", default="")
+    parser.add_argument("--tags", default="", help="Comma-separated tags.")
+    parser.add_argument("--participants", default="", help="Comma-separated participants.")
+    parser.add_argument("--importance", default="normal", choices=["low", "normal", "high", "critical"])
+    parser.add_argument("--status", default="inbox", choices=sorted(VALID_STATUSES))
+    parser.add_argument("--confidence", type=float, default=1.0)
+    parser.add_argument("--body", default="", help="Expandable memory body/context.")
+    parser.add_argument("--body-file", default="", help="Read expandable memory body from file.")
+    parser.add_argument("--decision", action="append", default=[])
+    parser.add_argument("--next-action", action="append", default=[])
+    parser.add_argument("--risk", action="append", default=[])
+    parser.add_argument("--artifact", action="append", default=[], help="KIND:URI")
+    parser.add_argument("--source-ref", action="append", default=[], help="KIND:REF")
+    parser.add_argument("--raw-trace-file", default="", help="JSONL or text file to attach as raw trace.")
+    parser.add_argument("--json", action="store_true", help="Print JSON.")
 
 
-def cmd_add(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
+def add_hidden_parser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    name: str,
+) -> argparse.ArgumentParser:
+    parser = subparsers.add_parser(name)
+    subparsers._choices_actions = [  # type: ignore[attr-defined]
+        action for action in subparsers._choices_actions if action.dest != name  # type: ignore[attr-defined]
+    ]
+    return parser
+
+
+def add_index_parser(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+    name: str,
+    help_text: str,
+    *,
+    hidden: bool = False,
+) -> None:
+    index = add_hidden_parser(subparsers, name) if hidden else subparsers.add_parser(name, help=help_text)
+    index.add_argument("--global-store", help="Also list a global MemoBox store when explicitly provided.")
+    index.add_argument("--page", type=int, default=1, help="Directory page to print.")
+    index.add_argument("--per-page", type=int, default=200, help="Entries per page.")
+    index.add_argument("--json", action="store_true")
+
+
+def cmd_write(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
     body = args.body
     if args.body_file:
         body = Path(args.body_file).read_text(encoding="utf-8")
@@ -274,50 +287,35 @@ def cmd_add(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_search(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
-    statuses = None if args.all_statuses else tuple(args.status) if args.status else DEFAULT_ACTIVE_STATUSES
-    results = MemoBoxSearcher(store).search(
-        args.query,
-        project=args.project,
-        workspace=args.workspace,
-        team=args.team,
-        role=args.role,
-        statuses=statuses,
-        limit=args.limit,
-    )
-    if args.json:
-        print_json(
-            [
-                {
-                    "score": result.score,
-                    "matched_terms": result.matched_terms,
-                    "entry": result.entry.to_dict(),
-                }
-                for result in results
-            ]
-        )
+def cmd_index(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
+    global_store_path = getattr(args, "global_store", None)
+    if global_store_path:
+        global_store = JsonMemoBoxStore(Path(global_store_path).expanduser())
+        payload: dict[str, Any] = {
+            "policy": MEMORY_POLICY,
+            "structure": MEMORY_STRUCTURE,
+            "stores": [
+                build_index_payload("project", store, page=args.page, per_page=args.per_page),
+                build_index_payload("global", global_store, page=args.page, per_page=args.per_page),
+            ],
+        }
     else:
-        for result in results:
-            entry = result.entry
-            tags = ",".join(entry.tags)
-            print(f"{entry.id}\t{result.score:.2f}\t{entry.status}\t{entry.project}\t{tags}\t{entry.subject}")
-            print(f"  {entry.summary}")
-    return 0
-
-
-def cmd_inbox(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
-    payload = build_inbox_payload("project", store, page=args.page, per_page=args.per_page)
+        payload = build_index_payload("project", store, page=args.page, per_page=args.per_page)
     if args.json:
         print_json(payload)
     else:
-        print_inbox_payload(payload)
+        if "stores" in payload:
+            for store_payload in payload["stores"]:
+                print_index_payload(store_payload)
+        else:
+            print_index_payload(payload)
     return 0
 
 
-def cmd_show(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
+def cmd_read(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
     mail = store.open_mail(args.id)
     payload: dict[str, Any] = mail.to_dict()
-    if args.raw:
+    if getattr(args, "raw", False):
         payload["raw_trace"] = store.open_raw_trace(args.id)
     if args.json:
         print_json(payload)
@@ -340,7 +338,7 @@ def cmd_show(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
             print("\nNext actions:")
             for action in mail.next_actions:
                 print(f"- {action}")
-        if args.raw:
+        if getattr(args, "raw", False):
             print("\nRaw trace:")
             for event in payload["raw_trace"]:
                 print(json.dumps(event, ensure_ascii=False, sort_keys=True))
@@ -356,7 +354,7 @@ def cmd_status(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_raw(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
+def cmd_trace(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
     trace = store.open_raw_trace(args.id)
     if args.json:
         print_json(trace)
@@ -379,8 +377,8 @@ def cmd_recall(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
         "policy": MEMORY_POLICY,
         "structure": MEMORY_STRUCTURE,
         "stores": [
-            build_inbox_payload("project", store, page=args.page, per_page=args.per_page),
-            build_inbox_payload("global", global_store, page=args.page, per_page=args.per_page),
+            build_index_payload("project", store, page=args.page, per_page=args.per_page),
+            build_index_payload("global", global_store, page=args.page, per_page=args.per_page),
         ],
     }
     if args.json:
@@ -389,7 +387,7 @@ def cmd_recall(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
         if args.task:
             print(f"task: {args.task}")
         for store_payload in payload["stores"]:
-            print_inbox_payload(store_payload)
+            print_index_payload(store_payload)
     return 0
 
 
@@ -615,7 +613,7 @@ def print_json(payload: Any) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
 
 
-def build_inbox_payload(scope: str, store: JsonMemoBoxStore, *, page: int, per_page: int) -> dict[str, Any]:
+def build_index_payload(scope: str, store: JsonMemoBoxStore, *, page: int, per_page: int) -> dict[str, Any]:
     page = max(1, page)
     per_page = max(1, per_page)
     entries = store.list_index()
@@ -644,22 +642,22 @@ def format_directory_entry(store: JsonMemoBoxStore, entry: Any) -> dict[str, Any
     payload["mail_body"] = {
         "path": str(mail_path),
         "exists": mail_path.exists(),
-        "open_command": f"memobox --store {store.root} show {entry.id} --json",
+        "open_command": f"memobox --store {store.root} read {entry.id} --json",
     }
     payload["raw_trace"] = {
         "path": str(raw_trace_path),
         "exists": raw_trace_path.exists(),
-        "open_command": f"memobox --store {store.root} raw {entry.id} --json",
+        "open_command": f"memobox --store {store.root} trace {entry.id} --json",
     }
     return payload
 
 
-def print_inbox_payload(payload: dict[str, Any]) -> None:
+def print_index_payload(payload: dict[str, Any]) -> None:
     print(
-        f"# MemoBox {payload['scope']} inbox: {payload['total_entries']} entries "
+        f"# MemoBox {payload['scope']} index: {payload['total_entries']} entries "
         f"(page {payload['page']}, per_page {payload['per_page']})"
     )
-    print("Policy: read this directory first; the model chooses which ids to open.")
+    print("Policy: MemoBox exposes storage structure; the model decides whether and what to read.")
     for entry in payload["entries"]:
         tags = ",".join(entry["tags"])
         print(f"{entry['id']}\t{entry['status']}\t{entry['project']}\t{tags}\t{entry['subject']}")

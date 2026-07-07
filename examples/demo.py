@@ -14,20 +14,20 @@ def main() -> None:
             store.add_mail(
                 MemoryMail(
                     id=f"task-{index}",
-                    subject=f"Task {index}: MemoBox inbox example",
-                    summary="Index-first task memory for AI agents.",
+                    subject=f"Record {index}: MemoBox index example",
+                    summary="Index-first model-readable memory storage.",
                     project="memobox",
                     team="platform",
-                    role="main-agent",
-                    tags=["agent-memory", "index-first", f"task-{index}"],
+                    role="model",
+                    tags=["model-memory", "index-first", f"task-{index}"],
                     context=f"Expandable body for task {index}.",
-                    decisions=["Keep index review before opening bodies."],
+                    decisions=["Keep index reads separate from body and trace reads."],
                 ),
                 raw_trace=[{"event": "completed", "task": index}],
             )
 
         directory = store.list_index()
-        print(f"inbox entries: {len(directory)}")
+        print(f"index entries: {len(directory)}")
         print(f"first id: {directory[0].id}")
         print(f"first subject: {directory[0].subject}")
 
