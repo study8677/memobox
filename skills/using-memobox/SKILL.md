@@ -41,6 +41,7 @@ Use MemoBox as an index-first, model-readable local file protocol. Read `.memobo
      --project "<project>" \
      --body "<useful context, decisions, artifacts, risks, follow-ups>"
    ```
-6. For duplicates, stale memories, pinned memories, or global promotion, use `curate`, `status`, or `promote`.
+6. If the Codex plugin hook is installed, `PreCompact(auto)` writes a `needs_review` checkpoint only when `.memobox` already exists. Set `MEMOBOX_PRECOMPACT_INIT=1` only when automatic store creation is wanted.
+7. For duplicates, stale memories, pinned memories, or global promotion, use `curate`, `status`, or `promote`.
 
 Keep summaries short, cite concrete files or commands in the body, and avoid storing secrets.

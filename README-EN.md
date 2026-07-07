@@ -343,6 +343,13 @@ Defaults:
 - Reads: open `index.json`, `mails/<id>.json`, and `traces/<id>.jsonl` directly
 - Writes/maintenance: use `memobox write/status/promote/curate`
 
+Before Codex automatically compacts context, the plugin can write a checkpoint memory through a `PreCompact(auto)` hook:
+
+- It writes only when the current repository already has `.memobox`, so installing the plugin does not create memory stores everywhere.
+- The checkpoint is marked `needs_review` and tagged with `codex`, `precompact`, `context`, and `checkpoint`.
+- The record includes the hook payload, current working directory, and git status. MemoBox does not promise full pre-compaction transcript capture unless Codex includes transcript content in the hook input.
+- Set `MEMOBOX_PRECOMPACT_INIT=1` if you want the hook to initialize a missing store automatically.
+
 ## Who It Is For
 
 - Coding models that need project decisions, paths, failures, and fixes.
@@ -369,6 +376,7 @@ Defaults:
 
 - [x] CLI: `init`, `write`, `status`, `promote`, `curate`
 - [x] Claude Code / Codex skills-only plugin
+- [x] Codex `PreCompact(auto)` checkpoint hook
 - [ ] MCP server for Codex, Claude Desktop, Cursor
 
 **UX / Trust**

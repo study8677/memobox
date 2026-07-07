@@ -345,6 +345,13 @@ Codex: $using-memobox
 - 读取：直接打开 `index.json`、`mails/<id>.json`、`traces/<id>.jsonl`
 - 写入/维护：使用 `memobox write/status/promote/curate`
 
+Codex 自动压缩上下文前，插件会通过 `PreCompact(auto)` hook 尝试写入一条 checkpoint 记忆：
+
+- 只有当前仓库已经存在 `.memobox` 时才会写入，避免在所有项目里自动创建记忆目录。
+- 写入的记录默认是 `needs_review`，标签包含 `codex`、`precompact`、`context`、`checkpoint`。
+- 记录内容包含 hook payload、当前工作目录和 git 状态；如果 Codex 没有把完整 transcript 放进 hook 输入，MemoBox 不会承诺保存完整未压缩上下文。
+- 如果确实希望 hook 自动初始化缺失的 store，可以设置 `MEMOBOX_PRECOMPACT_INIT=1`。
+
 ## 适合谁
 
 - 编码模型：复查项目决策、文件路径、失败原因和修复方式。
@@ -372,6 +379,7 @@ Codex: $using-memobox
 
 - [x] CLI：`init`、`write`、`status`、`promote`、`curate`
 - [x] Claude Code / Codex skills-only plugin
+- [x] Codex `PreCompact(auto)` checkpoint hook
 - [ ] MCP server for Codex、Claude Desktop、Cursor
 
 **UX / Trust**

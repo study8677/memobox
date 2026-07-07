@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "memobox-precompact-snapshot --store \"${MEMOBOX_STORE:-.memobox}\" --trigger auto",
+            "timeout": 30,
+            "statusMessage": "Writing MemoBox pre-compact checkpoint"
+          }
+        ]
+      }
+    ]
+  }
+}

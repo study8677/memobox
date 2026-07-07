@@ -39,6 +39,7 @@ test = ["pytest>=8"]
 [project.scripts]
 memobox = "memobox.cli:main"
 amb = "memobox.cli:main"
+memobox-precompact-snapshot = "memobox.hooks.precompact_snapshot:main"
 
 [project.urls]
 Homepage = "https://github.com/study8677/memobox"
