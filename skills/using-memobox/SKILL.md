@@ -18,18 +18,19 @@ Use MemoBox as an index-first task memory layer through the existing `memobox` C
 
 1. At task start, use the `recall` skill or run:
    ```bash
-   memobox --store .memobox recall "<query>" --project "<project>" --json
+   memobox --store .memobox recall "<task context>" --project "<project>" --json
    ```
-2. Read only index-level recall results first.
-3. Open a memory body only when a recall result is relevant:
+2. Read only the returned index-level inbox directories first.
+3. Use the subjects, summaries, tags, status, timestamps, and body/raw trace paths to choose memory ids yourself.
+4. Open a memory body only for chosen ids:
    ```bash
    memobox --store .memobox show <memory-id> --json
    ```
-4. Open raw trace only when the user asks for evidence or the task requires proof:
+5. Open raw trace only when the user asks for evidence or the task requires proof:
    ```bash
    memobox --store .memobox raw <memory-id> --json
    ```
-5. At task completion, use the `remember` skill to write one task-level Memory Mail.
-6. For duplicates, stale memories, pinned memories, or global promotion, use the `curate` skill.
+6. At task completion, use the `remember` skill to write one task-level Memory Mail.
+7. For duplicates, stale memories, pinned memories, or global promotion, use the `curate` skill.
 
 Keep summaries short, cite concrete files or commands in the body, and avoid storing secrets.

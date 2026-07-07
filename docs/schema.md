@@ -13,7 +13,7 @@ Important fields:
 - `subject`: short title.
 - `summary`: compact scan text for agents.
 - `project`, `workspace`, `team`, `role`: routing fields.
-- `tags`, `participants`: filtering and ranking fields.
+- `tags`, `participants`: routing, grouping, display, and model-selection signals.
 - `importance`: `low`, `normal`, `high`, or `critical`.
 - `status`: `inbox`, `pinned`, `archived`, `stale`, or `needs_review`.
 - `confidence`: summary reliability from `0.0` to `1.0`.
@@ -36,5 +36,4 @@ The memory body extends index metadata with:
 
 Raw trace is optional JSONL. It can store conversation turns, tool calls, terminal evidence, or external event records.
 
-Agents should only open raw trace when the index and body are insufficient.
-
+Agents should review the index directory first, choose specific memory ids to open, and only open raw trace when the selected body is insufficient.

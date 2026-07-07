@@ -24,16 +24,16 @@ memobox --store .memobox curate merge <id-a> <id-b> \
   --json
 ```
 
-Mark stale matches:
+Mark exact memory ids as stale after reviewing the inbox:
 
 ```bash
-memobox --store .memobox curate stale "<query>" --project "<project>" --json
+memobox --store .memobox curate stale <id-a> <id-b> --json
 ```
 
-Pin important matches:
+Pin exact memory ids after reviewing the inbox:
 
 ```bash
-memobox --store .memobox curate pin "<query>" --project "<project>" --json
+memobox --store .memobox curate pin <id-a> <id-b> --json
 ```
 
 Promote reusable project memory into global memory:
@@ -45,4 +45,4 @@ memobox --store .memobox promote <memory-id> \
   --json
 ```
 
-Before merging, stale-marking, or promoting, show the candidate ids and summarize what will change unless the user already gave exact ids and intent.
+Before merging, stale-marking, pinning, or promoting, review the index directory and summarize the exact ids you selected unless the user already gave exact ids and intent.

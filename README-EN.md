@@ -32,7 +32,7 @@ It targets a common long-term memory problem for engineering agents:
 MemoBox follows a simple default policy:
 
 ```text
-scan index.json -> open mails/<id>.json on match -> open traces/<id>.jsonl only for evidence
+open the index.json directory -> let the model choose mail ids -> open mails/<id>.json -> open traces/<id>.jsonl only for evidence
 ```
 
 ## Why Mailbox
@@ -41,11 +41,11 @@ The mailbox model is not decorative. It is the core interaction model:
 
 - **The subject is the best summary**: email subjects are short, explicit, and scannable; `MemoryMail.subject` is the first memory layer an agent should read.
 - **The inbox is the lightweight index**: the agent scans `index.json` the way a human scans an inbox.
-- **The body is progressive disclosure**: only relevant subjects and summaries lead to `mails/<id>.json`.
+- **The body is progressive disclosure**: the agent scans the full directory first, then chooses which `mails/<id>.json` bodies to open.
 - **Attachments and originals are evidence**: `traces/<id>.jsonl` opens only when the agent needs proof.
 - **Status is memory lifecycle**: `pinned`, `archived`, `stale`, and `needs_review` map to inbox-style memory management.
 
-This matches how agent skills should load context: do not load all history first; scan the title layer, then expand the matching mail.
+This matches how agent skills should load context: do not load all history first; scan the title layer, then let the model choose which mail to expand.
 
 MemoBox turns long agent history into progressive disclosure:
 
@@ -55,7 +55,7 @@ subject -> summary -> memory body -> raw evidence
 
 The first version focuses on four promises:
 
-- **Index-first**: search `index.json` by default instead of loading full history into context.
+- **Index-first**: open the `index.json` directory by default instead of loading full bodies and evidence into context.
 - **Task-level memory**: store decisions, artifacts, risks, and next actions per completed task.
 - **Evidence-aware**: open `Memory Mail` or `Raw Trace` only when more evidence is needed.
 - **Local-first Python**: zero runtime dependencies, CLI + Python API, auditable JSON files.
@@ -73,10 +73,10 @@ memobox --store .memobox add \
   --body "Changed OrderService query path and added regression test." \
   --decision "Prefer query-level fix before introducing cache."
 
-memobox --store .memobox search "same slow API pattern" --json
+memobox --store .memobox inbox --json
 ```
 
-The first layer an agent sees is not full history, but a compact index entry:
+The first layer an agent sees is not full history, but a compact directory entry:
 
 ```json
 {
@@ -88,15 +88,15 @@ The first layer an agent sees is not full history, but a compact index entry:
 }
 ```
 
-The full body and raw trace are opened only when the index summary is relevant.
+MemoBox does not decide relevance. The model reads the directory and chooses which body or raw trace to open.
 
 ## Not Another Vector Memory Store
 
 | Common memory systems | MemoBox |
 | --- | --- |
 | User preferences, facts, semantic fragments | Tasks, decisions, evidence, next actions |
-| Often embedding-first | Index-first by default, explainable and auditable |
-| Source can be unclear after retrieval | Summary -> body -> raw trace |
+| Often embedding-first | Directory-first by default, explainable and auditable |
+| Source chains can be unclear | Summary -> body -> raw trace |
 | Great for personal assistant preferences | Great for engineering agents and multi-agent teams |
 | More history can become more black-box | Inbox workflow: pin, archive, mark stale |
 
@@ -106,7 +106,7 @@ MemoBox can work with mem0, RAG, Obsidian, and logs. mem0 is better for user pre
 
 | Feature | What it means |
 | --- | --- |
-| Index-first retrieval | Search reads `index.json` only by default |
+| Index-first inbox | `inbox` / `recall` list the `index.json` directory by default |
 | Task memory mail | Each task becomes an expandable memory record |
 | Raw trace on demand | Conversation/tool/terminal evidence opens only when requested |
 | Team-ready metadata | Built-in `project`, `workspace`, `team`, `role`, `participants` |
@@ -118,8 +118,8 @@ MemoBox can work with mem0, RAG, Obsidian, and logs. mem0 is better for user pre
 ```mermaid
 flowchart LR
     A["Agent request"] --> B["Scan MemoBox Index<br/>index.json"]
-    B --> C{"Relevant memory?"}
-    C -- "No" --> D["Continue without history"]
+    B --> C{"Model chooses mail ids?"}
+    C -- "No" --> D["Continue without opening bodies"]
     C -- "Yes" --> E["Open Memory Mail<br/>mails/&lt;id&gt;.json"]
     E --> F{"Need evidence?"}
     F -- "No" --> G["Use summary + body"]
@@ -132,7 +132,7 @@ flowchart LR
 | Memory Mail | `mails/<id>.json` | context, decisions, artifacts, risks, next actions, source refs |
 | Raw Trace | `traces/<id>.jsonl` | conversation turns, tool calls, terminal evidence, external events |
 
-The test suite includes a spy store proving `MemoBoxSearcher.search(...)` does not open mail bodies or raw traces.
+The test suite verifies directory reads return only index-level data and do not open mail bodies or raw traces.
 
 ## Quick Start
 
@@ -159,13 +159,13 @@ memobox --store .memobox add \
   --role main-agent \
   --tags memory,agent,index-first \
   --body "Implemented index/body/raw-trace split and tests for lazy expansion." \
-  --decision "Search must never read raw traces by default."
+  --decision "Directory reads must never open raw traces by default."
 ```
 
-Search:
+Open the inbox directory:
 
 ```bash
-memobox --store .memobox search "index-first memory" --json
+memobox --store .memobox inbox --json
 ```
 
 Open body:
@@ -183,7 +183,7 @@ memobox --store .memobox raw <memory-id> --json
 ## Python API
 
 ```python
-from memobox import JsonMemoBoxStore, MemoryMail, MemoBoxSearcher
+from memobox import JsonMemoBoxStore, MemoryMail
 
 store = JsonMemoBoxStore(".memobox")
 
@@ -201,39 +201,45 @@ store.add_mail(
     )
 )
 
-results = MemoBoxSearcher(store).search("agent memory", project="memobox")
-mail = store.open_mail(results[0].entry.id)
+directory = store.list_index()
+mail = store.open_mail(directory[0].id)
 ```
 
 ## Agent Integration
 
-Expose two tools to your agent:
+Expose three basic tools to your agent:
 
 ```python
-def search_memobox(query: str, project: str | None = None) -> str:
-    results = MemoBoxSearcher(store).search(query, project=project, limit=3)
-    return "\n".join(f"{r.entry.id}: {r.entry.summary}" for r in results)
+def list_memobox_inbox() -> str:
+    entries = store.list_index()
+    return "\n".join(f"{entry.id}: {entry.subject} - {entry.summary}" for entry in entries)
 
 
 def open_memory_mail(memory_id: str) -> str:
     mail = store.open_mail(memory_id)
     return mail.context
+
+
+def open_raw_trace(memory_id: str) -> list[dict]:
+    return store.open_raw_trace(memory_id)
 ```
 
 Recommended policy:
 
-- Call `search_memobox` at task startup.
-- Call `open_memory_mail` only after a relevant index hit.
+- Call `list_memobox_inbox` at task startup.
+- Let the model scan subjects, summaries, tags, status, and timestamps.
+- Call `open_memory_mail` only after the model chooses specific ids.
 - Open raw trace only when evidence is needed.
 - At task completion, let the main agent or a memory curator agent write a new Memory Mail.
 
 ## Agent Workflow
 
-MemoBox now provides four lifecycle commands for agents:
+MemoBox now provides these lifecycle commands for agents:
 
 | Command | Trigger | Purpose |
 | --- | --- | --- |
-| `memobox recall` | Task start | Search project and global memory stores, returning index-level summaries only |
+| `memobox inbox` / `memobox map` | Task start | Open the current project index directory with body and evidence locations |
+| `memobox recall` | Task start | Open project and global memory directories so the model can choose bodies |
 | `memobox remember` | Task end | Write a standard Memory Mail for the completed task |
 | `memobox promote` | Reusable learning | Promote project memory into global memory |
 | `memobox curate` | Memory maintenance | Find duplicates, merge, mark stale, and pin important memories |
@@ -251,7 +257,7 @@ You can also set the global store with an environment variable:
 export MEMOBOX_GLOBAL_STORE="$HOME/.memobox-global"
 ```
 
-Recall at task start:
+Open directories at task start:
 
 ```bash
 memobox --store .memobox recall \
@@ -290,8 +296,8 @@ memobox --store .memobox curate duplicates --json
 memobox --store .memobox curate merge <id-a> <id-b> \
   --subject "Merged README homepage guidance" \
   --summary "Merged duplicate README optimization memories."
-memobox --store .memobox curate stale "old README guidance"
-memobox --store .memobox curate pin "important launch decision"
+memobox --store .memobox curate stale <id>
+memobox --store .memobox curate pin <id>
 ```
 
 ## Claude Code / Codex Plugin
@@ -321,7 +327,7 @@ codex plugin add memobox@memobox-marketplace
 After installation, use natural language:
 
 ```text
-Use MemoBox to recall relevant memory for this project.
+Use MemoBox to open this project's memory inbox.
 Use MemoBox to remember this task outcome.
 Use MemoBox to curate duplicate memories.
 ```
@@ -339,7 +345,7 @@ Defaults:
 
 - Project memory: `.memobox` in the current repository
 - Global memory: `${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}`
-- Recall scans the index first; bodies open only after relevant hits; raw traces open only when evidence is needed.
+- Recall opens the index directory first; the model chooses which bodies to open; raw traces open only when evidence is needed.
 
 ## Who It Is For
 
@@ -357,15 +363,15 @@ Defaults:
 - [ ] SQLite backend
 - [ ] Schema migration
 
-**Retrieval**
+**Directory Workflow**
 
-- [x] Index-first lexical search
-- [ ] BM25 / vector hybrid retrieval
-- [ ] stale memory detection
+- [x] Index-first inbox/map directory
+- [x] Legacy lexical search command
+- [ ] Better inbox organization and lifecycle views
 
 **Agent Integration**
 
-- [x] CLI: `init`, `add`, `search`, `show`, `status`, `raw`
+- [x] CLI: `init`, `add`, `inbox`, `map`, `recall`, `search`, `show`, `status`, `raw`
 - [x] Claude Code / Codex skills-only plugin
 - [ ] Memory curator agent workflow
 - [ ] MCP server for Codex, Claude Desktop, Cursor
@@ -387,11 +393,10 @@ PYTHONPATH=src python3 examples/demo.py
 
 ## What Is Tested
 
-MemoBox's core promise is index-first retrieval, so tests verify both output and read path:
+MemoBox's core promise is index-first directory review, so tests verify both output and read path:
 
-- `search()` calls `list_index()` only.
-- `search()` does not call `open_mail()`.
-- `search()` does not call `open_raw_trace()`.
+- `inbox` / `recall` call `list_index()` only.
+- Directory output does not include `context`, `decisions`, or raw trace contents.
 - `show` expands `Memory Mail`.
 - `raw` or explicit flags open `Raw Trace`.
 
@@ -401,7 +406,7 @@ MemoBox is alpha-stage. Good contribution areas:
 
 - Agent memory evaluation datasets.
 - mem0 / MCP / Obsidian integrations.
-- Better ranking, stale-memory, and archive policies.
+- Better inbox organization, stale-memory, and archive policies.
 - Team permission and audit models.
 - Web UI and social preview design.
 

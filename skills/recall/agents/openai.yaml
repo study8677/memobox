@@ -1,7 +1,7 @@
 interface:
   display_name: "Recall MemoBox"
-  short_description: "Search project and global memory"
+  short_description: "Review project and global memory inboxes"
   brand_color: "#2563EB"
-  default_prompt: "Use $recall to search MemoBox before starting this task."
+  default_prompt: "Use $recall to review the MemoBox index inbox before starting this task."
 policy:
   allow_implicit_invocation: true
