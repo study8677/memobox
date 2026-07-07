@@ -1,7 +1,7 @@
 {
   "name": "memobox",
   "version": "0.1.0",
-  "description": "Model-readable memory store using the MemoBox CLI.",
+  "description": "Model-readable local memory file protocol.",
   "author": {
     "name": "fanjingwen",
     "url": "https://github.com/study8677"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "MemoBox",
-    "shortDescription": "Model-readable memory store",
-    "longDescription": "Use MemoBox skills to inspect index-first JSON memory stores, read Memory Mail bodies and traces, write records, and curate local-first memory data through the existing memobox CLI.",
+    "shortDescription": "Model-readable memory files",
+    "longDescription": "Use MemoBox skills to inspect index-first JSON memory files directly, write records, and curate local-first memory data with the memobox maintenance CLI.",
     "developerName": "fanjingwen",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,7 +30,7 @@
     ],
     "websiteURL": "https://github.com/study8677/memobox",
     "defaultPrompt": [
-      "Use MemoBox to inspect the project memory index.",
+      "Use MemoBox to inspect the project memory files.",
       "Use MemoBox to write one memory record.",
       "Use MemoBox to curate duplicate memories."
     ],

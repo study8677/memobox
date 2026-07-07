@@ -2,9 +2,9 @@
 
 # MemoBox
 
-**A model-readable memory store for AI agents.**
+**A model-readable local memory file protocol for AI agents.**
 
-Give models a local-first memory store they can inspect with Bash: index first, body and evidence only when they choose.
+Give models a local-first memory file protocol they can inspect with Bash: `index.json` first, then body and evidence files only when they choose. The CLI only writes and maintains consistency.
 
 [中文](README.md) · [Schema](docs/schema.md) · [Example](examples/demo.py) · [GitHub](https://github.com/study8677/memobox)
 
@@ -15,7 +15,7 @@ Give models a local-first memory store they can inspect with Bash: index first, 
 
 <br/>
 
-<img src="docs/assets/memobox-flow.svg" alt="MemoBox index-first memory store" width="860">
+<img src="docs/assets/memobox-flow.svg" alt="MemoBox index-first memory file protocol" width="860">
 
 </div>
 
@@ -23,7 +23,7 @@ Give models a local-first memory store they can inspect with Bash: index first, 
 
 ## What Is MemoBox
 
-MemoBox is a **model-readable memory store**. It stores useful work records as structured memory mail and exposes three layers: lightweight index, expandable body, and raw evidence.
+MemoBox is a **model-readable local memory file protocol**. It stores useful work records as structured memory mail and exposes three layers: lightweight index, expandable body, and raw evidence.
 
 It targets a common long-term memory problem for engineering models:
 
@@ -32,7 +32,7 @@ It targets a common long-term memory problem for engineering models:
 MemoBox keeps the boundary simple:
 
 ```text
-MemoBox manages memory storage -> the model decides whether to call it -> the model decides whether to read index, body, or evidence
+MemoBox defines local files -> the model reads them directly with Bash -> the CLI only writes and maintains consistency
 ```
 
 ## Why Mailbox
@@ -45,7 +45,7 @@ The mailbox model is not decorative. It is the core interaction model:
 - **Attachments and originals are evidence**: `traces/<id>.jsonl` opens only when evidence is needed.
 - **Status is memory lifecycle**: `pinned`, `archived`, `stale`, and `needs_review` map to inbox-style memory management.
 
-This matches how models use Bash and tools: the storage layer exposes a clear surface, and the model decides when to read, which ids to read, and how deep to go.
+This matches how models use Bash and tools: the file layer exposes a clear structure, and the model decides when to read, which ids to read, and how deep to go.
 
 MemoBox turns long model-visible history into progressive disclosure:
 
@@ -58,7 +58,7 @@ The first version focuses on four promises:
 - **Index-first**: expose the `index.json` directory before full bodies and evidence.
 - **Memory mail**: store decisions, artifacts, risks, and next actions as structured memory records.
 - **Evidence-aware**: open `Memory Mail` or `Raw Trace` only when more evidence is needed.
-- **Local-first Python**: zero runtime dependencies, CLI + Python API, auditable JSON files.
+- **Local-first Python**: zero runtime dependencies, file protocol + write/maintenance CLI + Python API, auditable JSON files.
 
 ## 30-Second Demo
 
@@ -73,7 +73,7 @@ memobox --store .memobox write \
   --body "Changed OrderService query path and added regression test." \
   --decision "Prefer query-level fix before introducing cache."
 
-memobox --store .memobox index --json
+cat .memobox/index.json
 ```
 
 The first layer a model can read is not full history, but a compact directory entry:
@@ -88,7 +88,7 @@ The first layer a model can read is not full history, but a compact directory en
 }
 ```
 
-MemoBox does not decide relevance. The model decides whether to read a body or raw trace.
+MemoBox does not decide relevance. The model decides whether to open the matching body file or raw trace file.
 
 ## Not Another Vector Memory Store
 
@@ -106,12 +106,12 @@ MemoBox can work with mem0, RAG, Obsidian, and logs. mem0 is better for user pre
 
 | Feature | What it means |
 | --- | --- |
-| Index-first store | `index` lists the `index.json` directory without opening bodies or traces |
+| File protocol first | Models directly read `index.json`, `mails/*.json`, and `traces/*.jsonl` |
 | Memory mail | Important work records become expandable memory records |
 | Raw trace on demand | Conversation/tool/terminal evidence opens only when requested |
 | Team-ready metadata | Built-in `project`, `workspace`, `team`, `role`, `participants` |
 | Memory maintenance | `pinned`, `needs_review`, `archived`, `stale` |
-| Local-first CLI | Pure Python and JSON files, callable through Bash |
+| Maintenance CLI | Pure Python CLI for writes, status sync, promotion, and merging |
 
 ## Architecture
 
@@ -132,7 +132,7 @@ flowchart LR
 | Memory Mail | `mails/<id>.json` | context, decisions, artifacts, risks, next actions, source refs |
 | Raw Trace | `traces/<id>.jsonl` | conversation turns, tool calls, terminal evidence, external events |
 
-The test suite verifies directory reads return only index-level data and do not open mail bodies or raw traces.
+The test suite verifies `index.json` stores only index-level data and does not mix in mail bodies or raw traces.
 
 ## Quick Start
 
@@ -162,22 +162,22 @@ memobox --store .memobox write \
   --decision "Directory reads must never open raw traces by default."
 ```
 
-Read the memory index:
+Read the memory index directly:
 
 ```bash
-memobox --store .memobox index --json
+cat .memobox/index.json
 ```
 
-Read body:
+Read a body by id:
 
 ```bash
-memobox --store .memobox read <memory-id> --json
+cat .memobox/mails/<memory-id>.json
 ```
 
-Read raw trace:
+Read raw trace by id:
 
 ```bash
-memobox --store .memobox trace <memory-id> --json
+cat .memobox/traces/<memory-id>.jsonl
 ```
 
 ## Python API
@@ -205,19 +205,20 @@ directory = store.list_index()
 mail = store.open_mail(directory[0].id)
 ```
 
-## Storage Interface
+## File Protocol And CLI
 
-MemoBox exposes a storage interface, not an orchestration layer. A model with Bash/tool access can decide whether to call these commands.
+MemoBox exposes a local file protocol, not an orchestration layer. A model with Bash/tool access should read JSON files directly; the CLI is only for operations that modify multiple files or need consistency.
 
-| Command | Purpose |
+| File/command | Purpose |
 | --- | --- |
-| `memobox write` | Write one Memory Mail record |
-| `memobox index` | List lightweight memory index records |
-| `memobox read <id>` | Read one memory body |
-| `memobox trace <id>` | Read raw trace evidence |
-| `memobox status <id> <status>` | Update memory status |
+| `.memobox/index.json` | Lightweight memory directory for first-pass scanning |
+| `.memobox/mails/<id>.json` | One Memory Mail body |
+| `.memobox/traces/<id>.jsonl` | Optional raw trace evidence |
+| `memobox write` | Write one Memory Mail and sync index/body/trace |
+| `memobox status <id> <status>` | Sync status in both body and index |
 | `memobox promote <id>` | Copy reusable memory into a global store |
-| `memobox curate ...` | Deduplicate, merge, pin, and mark stale |
+| `memobox curate duplicates` | Find likely duplicate memories |
+| `memobox curate merge ...` | Merge memories and archive sources |
 
 Recommended project/global layout:
 
@@ -232,18 +233,17 @@ You can also set the global store with an environment variable:
 export MEMOBOX_GLOBAL_STORE="$HOME/.memobox-global"
 ```
 
-Read the current project index:
+Read the current project index directly:
 
 ```bash
-memobox --store .memobox index --json
+cat .memobox/index.json
 ```
 
-Explicitly read project and global indexes:
+Read project and global indexes directly:
 
 ```bash
-memobox --store .memobox index \
-  --global-store ~/.memobox-global \
-  --json
+cat .memobox/index.json
+cat ~/.memobox-global/index.json
 ```
 
 Write one memory:
@@ -251,30 +251,31 @@ Write one memory:
 ```bash
 memobox --store .memobox write \
   --subject "Improve MemoBox README positioning" \
-  --summary "Reframed MemoBox as a model-readable memory store instead of orchestration." \
+  --summary "Reframed MemoBox as a model-readable memory file protocol instead of orchestration." \
   --project memobox \
   --team platform \
   --role model \
   --tags readme,storage,open-source \
-  --body "The public surface now leads with write/index/read/trace storage commands." \
+  --body "The public surface now leads with local files for reads and CLI for writes." \
   --decision "Keep MemoBox out of relevance ranking and orchestration."
 ```
 
 The Python API keeps the same boundary:
 
 ```python
+from pathlib import Path
+
+
 def list_memobox_index() -> str:
-    entries = store.list_index()
-    return "\n".join(f"{entry.id}: {entry.subject} - {entry.summary}" for entry in entries)
+    return Path(".memobox/index.json").read_text(encoding="utf-8")
 
 
 def open_memory_mail(memory_id: str) -> str:
-    mail = store.open_mail(memory_id)
-    return mail.context
+    return Path(f".memobox/mails/{memory_id}.json").read_text(encoding="utf-8")
 
 
-def open_raw_trace(memory_id: str) -> list[dict]:
-    return store.open_raw_trace(memory_id)
+def open_raw_trace(memory_id: str) -> str:
+    return Path(f".memobox/traces/{memory_id}.jsonl").read_text(encoding="utf-8")
 ```
 
 Promote reusable project memory:
@@ -292,13 +293,13 @@ memobox --store .memobox curate duplicates --json
 memobox --store .memobox curate merge <id-a> <id-b> \
   --subject "Merged README homepage guidance" \
   --summary "Merged duplicate README optimization memories."
-memobox --store .memobox curate stale <id>
-memobox --store .memobox curate pin <id>
+memobox --store .memobox status <id> stale
+memobox --store .memobox status <id> pinned
 ```
 
 ## Claude Code / Codex Plugin
 
-The first MemoBox plugin is a **skills-only plugin**. It does not start an MCP server or change CLI arguments. It exposes the existing `memobox` storage commands to Claude Code and Codex.
+The first MemoBox plugin is a **skills-only plugin**. It does not start an MCP server. Reads use the `.memobox` file protocol; writes and maintenance use the `memobox` CLI.
 
 Install the CLI first:
 
@@ -323,7 +324,7 @@ codex plugin add memobox@memobox-marketplace
 After installation, use natural language:
 
 ```text
-Use MemoBox to inspect this project's memory index.
+Use MemoBox to inspect this project's memory files.
 Use MemoBox to write one memory.
 Use MemoBox to curate duplicate memories.
 ```
@@ -339,7 +340,8 @@ Defaults:
 
 - Project memory: `.memobox` in the current repository
 - Global memory: `${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}`
-- MemoBox exposes index, body, and evidence layers; the model decides whether to call it and how deep to read.
+- Reads: open `index.json`, `mails/<id>.json`, and `traces/<id>.jsonl` directly
+- Writes/maintenance: use `memobox write/status/promote/curate`
 
 ## Who It Is For
 
@@ -359,13 +361,13 @@ Defaults:
 
 **Storage Interface**
 
-- [x] Index-first storage directory
-- [x] Neutral CLI: `write`, `index`, `read`, `trace`
+- [x] Index-first local file protocol
+- [x] Maintenance CLI: `write`, `status`, `promote`, `curate`
 - [ ] Better index organization and lifecycle views
 
 **Model Integration**
 
-- [x] CLI: `init`, `write`, `index`, `read`, `trace`, `status`, `promote`, `curate`
+- [x] CLI: `init`, `write`, `status`, `promote`, `curate`
 - [x] Claude Code / Codex skills-only plugin
 - [ ] MCP server for Codex, Claude Desktop, Cursor
 
@@ -386,12 +388,12 @@ PYTHONPATH=src python3 examples/demo.py
 
 ## What Is Tested
 
-MemoBox's core promise is index-first directory review, so tests verify both output and read path:
+MemoBox's core promise is the index-first file protocol, so tests verify both write behavior and read paths:
 
-- `index` calls `list_index()` only.
-- Directory output does not include `context`, `decisions`, or raw trace contents.
-- `read` expands `Memory Mail`.
-- `trace` opens `Raw Trace`.
+- `index.json` does not contain `context`, `decisions`, or raw trace contents.
+- `mails/<id>.json` contains the Memory Mail body.
+- `traces/<id>.jsonl` contains Raw Trace evidence.
+- The CLI no longer wraps read commands.
 
 ## Contributing
 

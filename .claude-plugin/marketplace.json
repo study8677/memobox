@@ -4,14 +4,14 @@
     "name": "fanjingwen"
   },
   "metadata": {
-    "description": "MemoBox skills-only plugins for model-readable memory stores.",
+    "description": "MemoBox skills-only plugins for model-readable memory files.",
     "version": "0.1.0"
   },
   "plugins": [
     {
       "name": "memobox",
       "source": "./",
-      "description": "Model-readable memory store using the MemoBox CLI.",
+      "description": "Model-readable local memory file protocol.",
       "version": "0.1.0",
       "strict": true
     }

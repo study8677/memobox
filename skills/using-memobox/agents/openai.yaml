@@ -1,7 +1,7 @@
 interface:
   display_name: "Using MemoBox"
-  short_description: "Use the MemoBox memory store"
+  short_description: "Use MemoBox memory files"
   brand_color: "#2563EB"
-  default_prompt: "Use $using-memobox to inspect, read, write, or maintain MemoBox memory records."
+  default_prompt: "Use $using-memobox to inspect MemoBox files, write records, or maintain memories."
 policy:
   allow_implicit_invocation: true

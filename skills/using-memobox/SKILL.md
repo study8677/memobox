@@ -1,11 +1,11 @@
 ---
 name: using-memobox
-description: Use when the model chooses to inspect, read, write, or maintain MemoBox memory records through Bash.
+description: Use when the model chooses to inspect MemoBox memory files or write and maintain MemoBox records.
 ---
 
 # Using MemoBox
 
-Use MemoBox as an index-first, model-readable memory store through the existing `memobox` CLI. Do not assume an MCP server exists.
+Use MemoBox as an index-first, model-readable local file protocol. Read `.memobox` JSON files directly with Bash; use the `memobox` CLI only for writing and maintenance. Do not assume an MCP server exists.
 
 ## Preconditions
 
@@ -14,21 +14,24 @@ Use MemoBox as an index-first, model-readable memory store through the existing 
 - Use the project store at `.memobox` unless the user gives another store.
 - Use `${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}` as the global store.
 
-## Storage Commands
+## File Protocol And Commands
 
-1. When memory may help, inspect the index:
+1. When memory may help, inspect the local index file:
    ```bash
-   memobox --store .memobox index --json
+   cat .memobox/index.json
    ```
-   Add `--global-store "${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}"` only when the model explicitly wants the global store too.
-2. Use subjects, summaries, tags, status, timestamps, and body/raw trace paths to decide which ids to read.
+   If the global store is explicitly useful, also run:
+   ```bash
+   cat "${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}/index.json"
+   ```
+2. Use subjects, summaries, tags, status, and timestamps to decide which ids to open.
 3. Read a memory body only for chosen ids:
    ```bash
-   memobox --store .memobox read <memory-id> --json
+   cat .memobox/mails/<memory-id>.json
    ```
 4. Read raw trace only when evidence is required:
    ```bash
-   memobox --store .memobox trace <memory-id> --json
+   cat .memobox/traces/<memory-id>.jsonl
    ```
 5. Write one memory record when there is useful context to preserve:
    ```bash

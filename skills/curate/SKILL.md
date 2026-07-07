@@ -5,7 +5,7 @@ description: Use when the user asks to curate, deduplicate, merge, pin, archive,
 
 # Curate MemoBox Memory
 
-Use curation commands to keep `.memobox` useful and lightweight. Prefer index-level operations first.
+Use curation commands to keep `.memobox` useful and lightweight. Review `.memobox/index.json` directly before modifying records.
 
 ## Common Commands
 
@@ -27,13 +27,15 @@ memobox --store .memobox curate merge <id-a> <id-b> \
 Mark exact memory ids as stale after reviewing the index:
 
 ```bash
-memobox --store .memobox curate stale <id-a> <id-b> --json
+memobox --store .memobox status <id-a> stale
+memobox --store .memobox status <id-b> stale
 ```
 
 Pin exact memory ids after reviewing the index:
 
 ```bash
-memobox --store .memobox curate pin <id-a> <id-b> --json
+memobox --store .memobox status <id-a> pinned
+memobox --store .memobox status <id-b> pinned
 ```
 
 Promote reusable project memory into global memory:
@@ -45,4 +47,4 @@ memobox --store .memobox promote <memory-id> \
   --json
 ```
 
-Before merging, stale-marking, pinning, or promoting, review the index directory and summarize the exact ids you selected unless the user already gave exact ids and intent.
+Before merging, stale-marking, pinning, or promoting, read `.memobox/index.json` and summarize the exact ids you selected unless the user already gave exact ids and intent.

@@ -1,6 +1,6 @@
 {
   "name": "memobox",
-  "description": "Model-readable memory store using the MemoBox CLI.",
+  "description": "Model-readable local memory file protocol.",
   "version": "0.1.0",
   "author": {
     "name": "fanjingwen"

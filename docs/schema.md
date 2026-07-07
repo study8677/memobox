@@ -1,6 +1,6 @@
 # MemoBox Schema
 
-MemoBox stores memory in three layers.
+MemoBox stores memory in three local file layers. Models read these files directly with Bash; the `memobox` CLI is only for writes and maintenance operations that need consistency.
 
 ## `index.json`
 
@@ -36,4 +36,4 @@ The memory body extends index metadata with:
 
 Raw trace is optional JSONL. It can store conversation turns, tool calls, terminal evidence, or external event records.
 
-Models can read the index directory, choose specific memory ids to open, and read raw trace only when the selected body is insufficient.
+Models should read `.memobox/index.json`, choose specific memory ids to open, then read `.memobox/mails/<id>.json` or `.memobox/traces/<id>.jsonl` directly only when needed.
