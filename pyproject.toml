@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "memobox"
 version = "0.1.0"
-description = "Model-readable MemoBox memory store."
+description = "Model-readable local memory file protocol."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -39,6 +39,7 @@ test = ["pytest>=8"]
 [project.scripts]
 memobox = "memobox.cli:main"
 amb = "memobox.cli:main"
+memobox-precompact-snapshot = "memobox.hooks.precompact_snapshot:main"
 
 [project.urls]
 Homepage = "https://github.com/study8677/memobox"

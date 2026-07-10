@@ -4,14 +4,14 @@
     "name": "fanjingwen"
   },
   "metadata": {
-    "description": "MemoBox skills-only plugins for model-readable memory stores.",
+    "description": "MemoBox skills for an opt-in, index-first agent memory loop.",
     "version": "0.1.0"
   },
   "plugins": [
     {
       "name": "memobox",
       "source": "./",
-      "description": "Model-readable memory store using the MemoBox CLI.",
+      "description": "Opt-in, index-first local memory files for AI agents.",
       "version": "0.1.0",
       "strict": true
     }

@@ -1,7 +1,7 @@
 interface:
   display_name: "Write MemoBox"
-  short_description: "Write model-readable memory"
+  short_description: "Write only durable task outcomes"
   brand_color: "#2563EB"
-  default_prompt: "Use $write-memory to write one MemoBox memory record when useful."
+  default_prompt: "Use $write-memory at task end only for a verified durable outcome, and record materially reused memory ids as memobox source references."
 policy:
   allow_implicit_invocation: true

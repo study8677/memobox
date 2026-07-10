@@ -1,0 +1,76 @@
+[
+  {
+    "id": "file-protocol-boundary",
+    "prompt": "Explain why MemoBox removed CLI read/search wrappers and identify the current public read path without reintroducing relevance ranking.",
+    "required_facts": [
+      "Models read index.json, mails/<id>.json, and traces/<id>.jsonl directly.",
+      "The CLI is limited to writes and consistency-sensitive maintenance.",
+      "MemoBox does not decide relevance."
+    ],
+    "evidence": [
+      "README.md",
+      "src/memobox/cli.py",
+      "tests/test_memobox.py",
+      "commit 049a86d"
+    ]
+  },
+  {
+    "id": "precompact-entrypoint",
+    "prompt": "Diagnose why the Codex PreCompact hook calls a console script instead of python3 -m memobox and state what the checkpoint can and cannot preserve.",
+    "required_facts": [
+      "A plugin hook cannot assume the repository src directory is on PYTHONPATH.",
+      "The installed console script is the stable entrypoint.",
+      "Full transcript capture depends on the host payload and is not guaranteed."
+    ],
+    "evidence": [
+      "hooks/hooks.json",
+      "pyproject.toml",
+      "src/memobox/hooks/precompact_snapshot.py",
+      "tests/test_precompact_hook.py"
+    ]
+  },
+  {
+    "id": "concurrent-index-consistency",
+    "prompt": "Verify that concurrent Memory Mail writes cannot leave body files invisible from index.json, and explain the recovery path if cross-file state is damaged.",
+    "required_facts": [
+      "Concurrent mutations are serialized across processes.",
+      "File replacement is atomic.",
+      "The index can be verified and rebuilt from canonical mail bodies."
+    ],
+    "evidence": [
+      "src/memobox/store.py",
+      "src/memobox/cli.py",
+      "tests/test_memobox.py"
+    ]
+  },
+  {
+    "id": "plugin-activation",
+    "prompt": "Starting from a clean checkout, activate MemoBox for Codex, verify the CLI/plugin/store, write one record, and prove that a new session can discover it from the index.",
+    "required_facts": [
+      "The CLI and plugin are separate installation surfaces.",
+      "The project store must be initialized before conservative hooks write to it.",
+      "A successful activation ends with a directly readable index entry."
+    ],
+    "evidence": [
+      "README.md",
+      ".codex-plugin/plugin.json",
+      "skills/using-memobox/SKILL.md",
+      ".memobox/index.json"
+    ]
+  },
+  {
+    "id": "reuse-prior-decision",
+    "prompt": "Make a small MemoBox skill or documentation change while preserving the file-protocol boundary, and cite any prior Memory Mail that prevented repeated investigation or a conflicting decision.",
+    "required_facts": [
+      "The task starts with index-first inspection when .memobox is active.",
+      "Only selected bodies or traces are opened.",
+      "The completion record cites reused memory ids and concrete verification."
+    ],
+    "evidence": [
+      "skills/using-memobox/SKILL.md",
+      "skills/recall/SKILL.md",
+      "skills/remember/SKILL.md",
+      ".memobox/index.json"
+    ]
+  }
+]

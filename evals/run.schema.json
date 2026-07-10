@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MemoBox dogfood run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "task_id",
+    "group",
+    "correctness",
+    "evidence_seconds",
+    "investigation_commands",
+    "context_units",
+    "context_unit",
+    "stale_memory_misuses",
+    "maintenance_seconds",
+    "used_memory_ids"
+  ],
+  "properties": {
+    "run_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "group": {"enum": ["A", "B", "C"]},
+    "correctness": {"type": "number", "minimum": 0, "maximum": 1},
+    "evidence_seconds": {"type": "number", "minimum": 0},
+    "investigation_commands": {"type": "integer", "minimum": 0},
+    "context_units": {"type": "integer", "minimum": 0},
+    "context_unit": {"type": "string", "minLength": 1},
+    "stale_memory_misuses": {"type": "integer", "minimum": 0},
+    "maintenance_seconds": {"type": "number", "minimum": 0},
+    "used_memory_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "notes": {"type": "string"}
+  }
+}

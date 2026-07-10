@@ -5,7 +5,17 @@ description: Use when the user asks to curate, deduplicate, merge, pin, archive,
 
 # Curate MemoBox Memory
 
-Use curation commands to keep `.memobox` useful and lightweight. Prefer index-level operations first.
+Use curation commands to keep an opted-in `.memobox` useful and lightweight. Review `.memobox/index.json` directly before modifying records. MemoBox may expose duplicate candidates, but the model or user makes every merge, stale, pin, archive, and promotion decision.
+
+Do not initialize a missing store. Do not curate during simple or sensitive tasks unless the user explicitly asks. A weekly review during dogfooding is usually enough.
+
+## Review Order
+
+1. Read `.memobox/index.json` first.
+2. Review `needs_review` records created by the `PreCompact(auto)` safety net; keep their durable content in a deliberate Memory Mail or archive/stale-mark the checkpoint.
+3. Open candidate bodies before merging, marking stale, pinning, or promoting.
+4. Prefer fewer high-value records over transcript-like accumulation.
+5. Preserve `source_refs` such as `memobox:<id>` because they make real reuse measurable.
 
 ## Common Commands
 
@@ -27,13 +37,15 @@ memobox --store .memobox curate merge <id-a> <id-b> \
 Mark exact memory ids as stale after reviewing the index:
 
 ```bash
-memobox --store .memobox curate stale <id-a> <id-b> --json
+memobox --store .memobox status <id-a> stale
+memobox --store .memobox status <id-b> stale
 ```
 
 Pin exact memory ids after reviewing the index:
 
 ```bash
-memobox --store .memobox curate pin <id-a> <id-b> --json
+memobox --store .memobox status <id-a> pinned
+memobox --store .memobox status <id-b> pinned
 ```
 
 Promote reusable project memory into global memory:
@@ -45,4 +57,4 @@ memobox --store .memobox promote <memory-id> \
   --json
 ```
 
-Before merging, stale-marking, pinning, or promoting, review the index directory and summarize the exact ids you selected unless the user already gave exact ids and intent.
+Before merging, stale-marking, pinning, or promoting, read `.memobox/index.json` and summarize the exact ids you selected unless the user already gave exact ids and intent. The duplicates command is only a candidate list; it is not a relevance or merge decision.

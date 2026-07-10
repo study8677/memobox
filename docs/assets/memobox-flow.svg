@@ -1,11 +1,11 @@
 <svg width="1120" height="600" viewBox="0 0 1120 600" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">MemoBox index-first memory store</title>
-  <desc id="desc">MemoBox exposes an index-first memory store; the model decides whether to read bodies or raw trace evidence.</desc>
+  <title id="title">MemoBox index-first memory file protocol</title>
+  <desc id="desc">MemoBox exposes index-first memory files; the model decides whether to read bodies or raw trace evidence.</desc>
   <rect width="1120" height="600" rx="28" fill="#F8FAFC"/>
   <rect x="36" y="36" width="1048" height="528" rx="24" fill="white" stroke="#CBD5E1"/>
 
   <text x="72" y="92" fill="#0F172A" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="750">MemoBox</text>
-  <text x="72" y="124" fill="#475569" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="17">Index-first memory store for models</text>
+  <text x="72" y="124" fill="#475569" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="17">Index-first memory files for models</text>
 
   <rect x="72" y="168" width="250" height="120" rx="18" fill="#ECFEFF" stroke="#06B6D4"/>
   <text x="104" y="210" fill="#0E7490" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="700">1. Read index</text>

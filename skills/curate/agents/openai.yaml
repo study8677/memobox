@@ -1,7 +1,7 @@
 interface:
   display_name: "Curate MemoBox"
-  short_description: "Clean up and promote memories"
+  short_description: "Review and maintain memory quality"
   brand_color: "#2563EB"
-  default_prompt: "Use $curate to clean up MemoBox memories."
+  default_prompt: "Use $curate to review exact memory ids, clean up needs_review checkpoints and duplicates, and preserve reuse source references."
 policy:
   allow_implicit_invocation: true
