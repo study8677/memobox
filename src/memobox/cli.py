@@ -127,6 +127,21 @@ def add_write_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--risk", action="append", default=[])
     parser.add_argument("--artifact", action="append", default=[], help="KIND:URI")
     parser.add_argument("--source-ref", action="append", default=[], help="KIND:REF")
+    parser.add_argument(
+        "--supersedes",
+        action="append",
+        default=[],
+        metavar="ID",
+        help="Memory id replaced by this record. Repeat to replace multiple records.",
+    )
+    parser.add_argument(
+        "--last-verified-at",
+        help="ISO 8601 date or timezone-aware datetime when this memory was verified.",
+    )
+    parser.add_argument(
+        "--valid-until",
+        help="ISO 8601 date or timezone-aware datetime after which this memory needs review.",
+    )
     parser.add_argument("--raw-trace-file", default="", help="JSONL or text file to attach as raw trace.")
     parser.add_argument("--json", action="store_true", help="Print JSON.")
 
@@ -154,6 +169,9 @@ def cmd_write(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
         next_actions=args.next_action,
         risks=args.risk,
         source_refs=[parse_source_ref(item) for item in args.source_ref],
+        supersedes=args.supersedes,
+        last_verified_at=args.last_verified_at,
+        valid_until=args.valid_until,
     )
     raw_trace = read_raw_trace(args.raw_trace_file) if args.raw_trace_file else None
     stored = store.add_mail(mail, raw_trace=raw_trace)
@@ -175,11 +193,16 @@ def cmd_status(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
 
 def cmd_promote(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
     source = store.open_mail(args.id)
-    global_store = JsonMemoBoxStore(Path(args.global_store).expanduser())
+    project_store_root = store.root.expanduser().resolve()
+    global_store = JsonMemoBoxStore(Path(args.global_store).expanduser().resolve())
     tags = dedupe([*source.tags, "promoted", *args.tag])
     source_refs = [
         *source.source_refs,
-        SourceRef(kind="memobox", ref=f"{store.root}:{source.id}", note="promoted from project memory"),
+        SourceRef(
+            kind="memobox",
+            ref=f"{project_store_root}:{source.id}",
+            note="promoted from project memory",
+        ),
     ]
     promoted = MemoryMail(
         id="",
@@ -200,6 +223,8 @@ def cmd_promote(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
         next_actions=list(source.next_actions),
         risks=list(source.risks),
         source_refs=source_refs,
+        last_verified_at=source.last_verified_at,
+        valid_until=source.valid_until,
     )
     raw_trace = store.open_raw_trace(source.id) if args.with_raw else None
     stored = global_store.add_mail(promoted, raw_trace=raw_trace)
@@ -208,7 +233,7 @@ def cmd_promote(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
     payload = {
         "source_id": source.id,
         "promoted_id": stored.id,
-        "project_store": str(store.root),
+        "project_store": str(project_store_root),
         "global_store": str(global_store.root),
         "archived_source": bool(args.archive_source),
     }

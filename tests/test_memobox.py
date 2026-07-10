@@ -202,7 +202,16 @@ def test_file_protocol_lists_directory_without_judging_relevance(tmp_path: Path)
 def test_promote_copies_project_memory_to_global_store(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     project_store = JsonMemoBoxStore(tmp_path / "project")
     global_store_dir = tmp_path / "global"
-    project_store.add_mail(make_mail(1), raw_trace=[{"event": "evidence"}])
+    project_store.add_mail(make_mail(0))
+    project_store.add_mail(
+        make_mail(
+            1,
+            supersedes=["task-0"],
+            last_verified_at="2026-07-10T17:30:00+08:00",
+            valid_until="2026-10-10",
+        ),
+        raw_trace=[{"event": "evidence"}],
+    )
 
     assert (
         main(
@@ -225,7 +234,12 @@ def test_promote_copies_project_memory_to_global_store(tmp_path: Path, capsys: p
     promoted = global_store.open_mail(payload["promoted_id"])
     assert promoted.project == "global"
     assert "promoted" in promoted.tags
-    assert promoted.source_refs[-1].ref.endswith(":task-1")
+    assert promoted.source_refs[-1].ref == f"{project_store.root.resolve()}:task-1"
+    assert payload["project_store"] == str(project_store.root.resolve())
+    assert payload["global_store"] == str(global_store_dir.resolve())
+    assert promoted.supersedes == []
+    assert promoted.last_verified_at == "2026-07-10T17:30:00+08:00"
+    assert promoted.valid_until == "2026-10-10"
     assert global_store.open_raw_trace(promoted.id) == [{"event": "evidence"}]
     assert project_store.open_mail("task-1").status == "archived"
 
@@ -444,6 +458,121 @@ def test_trace_requires_an_existing_mail_body(tmp_path: Path) -> None:
         store.write_raw_trace("missing", [{"event": "orphan"}])
 
     assert not store.trace_path("missing").exists()
+
+
+def test_cli_write_supersedes_existing_memories_and_exposes_freshness(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+    store.add_mail(make_mail(1, status="pinned"))
+    store.add_mail(make_mail(2))
+
+    assert (
+        main(
+            [
+                "--store",
+                str(store.root),
+                "write",
+                "--subject",
+                "Current memory",
+                "--summary",
+                "Replaces two older records.",
+                "--supersedes",
+                "task-1",
+                "--supersedes",
+                "task-1",
+                "--supersedes",
+                "task-2",
+                "--last-verified-at",
+                "2026-07-10T17:30:00+08:00",
+                "--valid-until",
+                "2026-10-10",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    replacement_payload = json.loads(capsys.readouterr().out)
+    replacement = store.open_mail(replacement_payload["id"])
+
+    assert replacement.schema_version == 2
+    assert replacement.supersedes == ["task-1", "task-2"]
+    assert replacement.last_verified_at == "2026-07-10T17:30:00+08:00"
+    assert replacement.valid_until == "2026-10-10"
+    assert {(ref.kind, ref.ref, ref.note) for ref in replacement.source_refs} >= {
+        ("memobox", "task-1", "superseded memory"),
+        ("memobox", "task-2", "superseded memory"),
+    }
+    assert store.open_mail("task-1").status == "stale"
+    assert store.open_mail("task-2").status == "stale"
+
+    replacement_index = store.get_index_entry(replacement.id)
+    assert replacement_index.supersedes == ["task-1", "task-2"]
+    assert replacement_index.last_verified_at == replacement.last_verified_at
+    assert replacement_index.valid_until == replacement.valid_until
+    assert "context" not in replacement_index.to_dict()
+
+
+def test_supersedes_rejects_missing_and_self_references_without_partial_write(
+    tmp_path: Path,
+) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+    store.add_mail(make_mail(1))
+
+    with pytest.raises(KeyError, match="Memory mail body not found: missing"):
+        store.add_mail(make_mail(2, supersedes=["missing"]))
+    assert {entry.id for entry in store.list_index()} == {"task-1"}
+    assert store.open_mail("task-1").status == "inbox"
+
+    with pytest.raises(ValueError, match="cannot supersede itself"):
+        store.add_mail(make_mail(2, supersedes=["task-2"]))
+    assert {entry.id for entry in store.list_index()} == {"task-1"}
+
+
+def test_freshness_dates_require_iso_8601_and_timezone_for_datetimes() -> None:
+    assert make_mail(1, last_verified_at="2026-07-10").last_verified_at == "2026-07-10"
+    assert make_mail(1, valid_until="2026-07-10T09:00:00Z").valid_until == (
+        "2026-07-10T09:00:00Z"
+    )
+
+    for field_name, invalid in [
+        ("last_verified_at", "2026-13-10"),
+        ("last_verified_at", "2026-07-10T09:00:00"),
+        ("valid_until", "next quarter"),
+        ("valid_until", 20260710),
+    ]:
+        with pytest.raises(ValueError, match=field_name):
+            make_mail(2, **{field_name: invalid})
+
+    with pytest.raises(ValueError, match="supersedes"):
+        MemoryMail.from_dict(make_mail(2).to_dict() | {"supersedes": [1]})
+
+
+def test_schema_v1_mail_without_supersession_or_freshness_remains_readable(
+    tmp_path: Path,
+) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+    store.initialize()
+    v1_payload = make_mail(1).to_dict()
+    v1_payload["schema_version"] = 1
+    for field_name in ("supersedes", "last_verified_at", "valid_until"):
+        v1_payload.pop(field_name, None)
+    store.mail_path("task-1").write_text(
+        json.dumps(v1_payload, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    rebuilt = store.rebuild_index()
+    restored = store.open_mail("task-1")
+
+    assert rebuilt["ok"] is True
+    assert restored.schema_version == 1
+    assert restored.supersedes == []
+    assert restored.last_verified_at is None
+    assert restored.valid_until is None
+    assert "supersedes" not in restored.to_dict()
+    assert store.get_index_entry("task-1").schema_version == 1
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows symlink creation may require privileges")

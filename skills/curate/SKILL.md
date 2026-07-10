@@ -48,7 +48,7 @@ memobox --store .memobox status <id-a> pinned
 memobox --store .memobox status <id-b> pinned
 ```
 
-Promote reusable project memory into global memory:
+Promote reusable project memory into global memory only after confirming that the body is verified, portable beyond the current workspace, understandable without private repository context, and free of sensitive data:
 
 ```bash
 memobox --store .memobox promote <memory-id> \
@@ -58,3 +58,5 @@ memobox --store .memobox promote <memory-id> \
 ```
 
 Before merging, stale-marking, pinning, or promoting, read `.memobox/index.json` and summarize the exact ids you selected unless the user already gave exact ids and intent. The duplicates command is only a candidate list; it is not a relevance or merge decision.
+
+Keep the global index intentionally small. Do not promote one-off project status, repository-specific paths, speculative conclusions, secrets, personal data, or confidential raw traces. When global knowledge is reused in a project, preserve it with `--source-ref "memobox-global:<id>"`.

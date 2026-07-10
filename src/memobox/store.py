@@ -14,10 +14,13 @@ from memobox.models import (
     IndexEntry,
     MemoryMail,
     MemoryStatus,
+    SourceRef,
     utc_now_iso,
     validate_confidence,
     validate_importance,
+    validate_iso_date_or_datetime,
     validate_status,
+    validate_supersedes,
 )
 
 try:
@@ -63,9 +66,17 @@ class JsonMemoBoxStore:
         validate_status(mail.status)
         validate_importance(mail.importance)
         validate_confidence(mail.confidence)
+        validate_supersedes(mail.supersedes)
+        validate_iso_date_or_datetime(mail.last_verified_at, "last_verified_at")
+        validate_iso_date_or_datetime(mail.valid_until, "valid_until")
         if not mail.id:
             mail.id = self.generate_id(mail.subject)
         validate_mail_id(mail.id)
+        mail.supersedes = list(dict.fromkeys(mail.supersedes))
+        for superseded_id in mail.supersedes:
+            validate_mail_id(superseded_id)
+            if superseded_id == mail.id:
+                raise ValueError("A memory mail cannot supersede itself")
 
         now = utc_now_iso()
         mail.created_at = mail.created_at or now
@@ -76,9 +87,32 @@ class JsonMemoBoxStore:
         with self._exclusive_lock():
             self._initialize_unlocked()
             self._assert_mails_valid_unlocked()
+            superseded_mails = [
+                self._open_mail_unlocked(superseded_id)
+                for superseded_id in mail.supersedes
+            ]
+            existing_refs = {(source_ref.kind, source_ref.ref) for source_ref in mail.source_refs}
+            for superseded_id in mail.supersedes:
+                key = ("memobox", superseded_id)
+                if key not in existing_refs:
+                    mail.source_refs.append(
+                        SourceRef(
+                            kind="memobox",
+                            ref=superseded_id,
+                            note="superseded memory",
+                        )
+                    )
+                    existing_refs.add(key)
             self._write_json(self.mail_path(mail.id), mail.to_dict())
             if trace_payload is not None:
                 self._atomic_write_text(self.trace_path(mail.id), trace_payload)
+            for superseded_mail in superseded_mails:
+                superseded_mail.status = "stale"
+                superseded_mail.updated_at = now
+                self._write_json(
+                    self.mail_path(superseded_mail.id),
+                    superseded_mail.to_dict(),
+                )
             self._rebuild_index_file_unlocked()
         return mail
 

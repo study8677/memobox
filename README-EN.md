@@ -194,9 +194,10 @@ In an opted-in project, the agent follows this loop:
 
 1. Skip simple lookups, formatting, and one-off mechanical work. Also skip security-restricted or sensitive tasks unless the user explicitly authorizes safe, redacted persistence.
 2. At the start of non-trivial work, read `.memobox/index.json`. The model then uses subjects, summaries, tags, status, and timestamps to choose whether to open specific bodies. MemoBox does not rank, filter, or decide relevance.
-3. Read `traces/<id>.jsonl` only when evidence is required. Track opened ids separately from reused ids; a memory is reused only when it materially affects the plan, decision, implementation, or verification.
-4. At task end, apply a strict worthiness gate. Save only durable decisions, non-obvious verified causes and fixes, reusable exact evidence, important risks, or cross-session handoffs. Most tasks should write zero or one record.
-5. If a new Memory Mail reused older memories, add `--source-ref "memobox:<id>"` for every materially reused id. Never create a low-value record merely to log reuse.
+3. Scan the global index only when cross-project experience is explicit, the project index has no useful record, or the task is likely to reuse portable setup, authentication, CI, deployment, plugin, toolchain, or incident knowledge. Do not load global bodies merely because the store exists.
+4. Read `traces/<id>.jsonl` only when evidence is required. Track opened ids separately from reused ids; a memory is reused only when it materially affects the plan, decision, implementation, or verification.
+5. At task end, apply a strict worthiness gate. Save only durable decisions, non-obvious verified causes and fixes, reusable exact evidence, important risks, or cross-session handoffs. Most tasks should write zero or one record.
+6. Cite reused project records as `--source-ref "memobox:<id>"` and reused global records as `--source-ref "memobox-global:<id>"`. Never create a low-value record merely to log reuse.
 
 ```bash
 memobox --store .memobox write \
@@ -211,6 +212,13 @@ memobox --store .memobox write \
 ```
 
 See [docs/dogfooding.md](docs/dogfooding.md) for the two-week process, run-log fields, metric definitions, and acceptance gates.
+
+After a real task completes, append measured opened/reused ids and outcome metrics to ignored `work/` data with the strict recorder, then summarize against the same task manifest. The recorder never generates tasks or invents results:
+
+```bash
+python3 evals/record.py work/dogfood-results.jsonl --tasks work/dogfood-tasks.json ...
+python3 evals/summarize.py work/dogfood-results.jsonl --tasks work/dogfood-tasks.json
+```
 
 ## Python API
 
@@ -247,6 +255,7 @@ MemoBox exposes a local file protocol, not an orchestration layer. A model with 
 | `.memobox/mails/<id>.json` | One Memory Mail body |
 | `.memobox/traces/<id>.jsonl` | Optional raw trace evidence |
 | `memobox write` | Write one Memory Mail and sync index/body/trace |
+| `memobox write --supersedes <id>` | Write a replacement, link its source, and mark the replaced record `stale` |
 | `memobox status <id> <status>` | Sync status in both body and index |
 | `memobox promote <id>` | Copy reusable memory into a global store |
 | `memobox curate duplicates` | Find likely duplicate memories |
@@ -280,6 +289,8 @@ cat .memobox/index.json
 cat ~/.memobox-global/index.json
 ```
 
+The global index is not a second default context bundle. Scan it only for portable cross-project experience and track project/global opened and reused ids separately. Keep it deliberately small; never promote one-off status, private paths, speculation, secrets, personal data, or confidential raw traces.
+
 Write one memory:
 
 ```bash
@@ -293,6 +304,19 @@ memobox --store .memobox write \
   --body "The public surface now leads with local files for reads and CLI for writes." \
   --decision "Keep MemoBox out of relevance ranking and orchestration."
 ```
+
+Replace an outdated memory with a verified record:
+
+```bash
+memobox --store .memobox write \
+  --subject "Current deployment procedure" \
+  --summary "Verified replacement for the old deployment note." \
+  --supersedes <old-memory-id> \
+  --last-verified-at 2026-07-10T17:30:00+08:00 \
+  --valid-until 2026-10-10
+```
+
+`last_verified_at` and `valid_until` are exposed in the lightweight index as model-readable freshness signals; passing `valid_until` does not automatically change status. `--supersedes` validates the sources, creates provenance links, and marks the replaced records `stale`.
 
 The Python API keeps the same boundary:
 
@@ -319,6 +343,8 @@ memobox --store .memobox promote <memory-id> \
   --global-store ~/.memobox-global \
   --tag readme-pattern
 ```
+
+Before promotion, open the body and confirm that it is verified, portable outside the workspace, understandable without private repository context, and safe. Promotion creates a new global id with provenance containing the absolute project-store path; the two copies do not stay synchronized.
 
 Curate memory:
 
@@ -379,7 +405,9 @@ Defaults:
 - Project memory: `.memobox` in the current repository
 - Global memory: `${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}`
 - Start of non-trivial work: read `index.json` first, then let the model choose bodies and evidence
+- Cross-project tasks: scan the global index only when useful and track project/global opened and reused ids separately
 - Task end: write structured results with `memobox write` only after the worthiness gate; record materially reused ids in `source_refs`
+- Replacement: use `--supersedes` to link and stale-mark old records; use verification/validity fields as freshness signals
 - Simple, sensitive, or non-durable tasks: do not read or write MemoBox
 - Maintenance: use `memobox status/promote/curate/verify/rebuild-index`
 
@@ -413,6 +441,8 @@ Before Codex automatically compacts context, the plugin can write a checkpoint m
 - [x] Index-first local file protocol
 - [x] Maintenance CLI: `write`, `status`, `promote`, `curate`, `verify`, `rebuild-index`
 - [ ] Better index organization and lifecycle views
+- [x] Explicit supersession, verification time, and validity signals
+- [ ] Automatic stale-memory detection
 
 **Model Integration**
 
@@ -420,6 +450,7 @@ Before Codex automatically compacts context, the plugin can write a checkpoint m
 - [x] Claude Code / Codex skills-only plugin
 - [x] Codex `PreCompact(auto)` checkpoint hook
 - [x] `.memobox` opt-in + index-first + high-value write agent loop
+- [x] Strict real-run recorder with separate opened and reused memory ids
 - [ ] Dogfood 20 real tasks across three active projects
 - [ ] MCP server for Codex, Claude Desktop, Cursor
 

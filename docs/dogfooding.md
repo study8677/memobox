@@ -16,6 +16,41 @@ MemoBox 始终只暴露结构和维护文件一致性。相关性、是否打开
 
 ## 每个任务的流程
 
+真实运行结果写到被 git 忽略的 `work/`，不要修改示例结果。先为本轮真实任务建立私有 task manifest；三个组必须使用同一组 task ids：
+
+```json
+[
+  {"id": "real-task-01"},
+  {"id": "real-task-02"}
+]
+```
+
+任务完成后使用零依赖记录器追加一条已测量 run；记录器只校验和落盘，不会生成任务或猜测指标：
+
+```bash
+python3 evals/record.py work/dogfood-results.jsonl \
+  --tasks work/dogfood-tasks.json \
+  --run-id 2026-07-10-real-task-01-C \
+  --task-id real-task-01 \
+  --group C \
+  --correctness 1 \
+  --evidence-seconds 34 \
+  --investigation-commands 3 \
+  --context-units 1800 \
+  --context-unit tokens \
+  --stale-memory-misuses 0 \
+  --maintenance-seconds 5 \
+  --opened-memory-id <opened-id> \
+  --reused-memory-id <materially-reused-id>
+```
+
+用同一个 task manifest 汇总；只有 A/B/C 配对齐全才会产出验收结果：
+
+```bash
+python3 evals/summarize.py work/dogfood-results.jsonl \
+  --tasks work/dogfood-tasks.json
+```
+
 ### 1. 开始前
 
 在独立的实验表或 JSONL 运行日志中记录任务信息。实验指标不要写成 Memory Mail，否则会污染记忆质量。
