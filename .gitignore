@@ -20,6 +20,7 @@ wheelhouse/
 .venv/
 venv/
 env/
+uv.lock
 .env
 .env.*
 
@@ -31,4 +32,3 @@ work/
 .DS_Store
 .idea/
 .vscode/
-

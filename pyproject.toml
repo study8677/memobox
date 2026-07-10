@@ -36,6 +36,9 @@ dependencies = []
 [project.optional-dependencies]
 test = ["pytest>=8"]
 
+[dependency-groups]
+dev = ["pytest>=8"]
+
 [project.scripts]
 memobox = "memobox.cli:main"
 amb = "memobox.cli:main"
@@ -49,3 +52,6 @@ Documentation = "https://github.com/study8677/memobox#readme"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

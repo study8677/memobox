@@ -10,29 +10,49 @@ model still decides which records to open.
 - **A — repository baseline:** the agent receives the checkout and Git history.
 - **B — host-memory baseline:** the agent also has the host's built-in Memories.
 - **C — MemoBox:** the agent also follows the project `.memobox` index/body/trace
-  protocol. Record every MemoBox id actually used.
+  protocol. Separately record every body opened and every memory that materially
+  changed the plan, decision, implementation, or verification.
 
 Use a fresh task/session for every run, keep the model and tool permissions the
 same, and do not expose one group's notes to another group. Run all three groups
 for every task in `tasks.json`.
 
-## Record a run
+## Record a completed run
 
-Write one JSON object per line following `run.schema.json`. Times are wall-clock
-seconds. `investigation_commands` counts repository/history/file-discovery tool
-calls made before the first correct evidence is found. `context_units` can be
-tokens when the host reports them or a consistent character estimate otherwise;
-record the unit in `context_unit`.
+Use the zero-dependency recorder so every entry is checked against `tasks.json`,
+the run id cannot duplicate an existing entry, and malformed metrics cannot be
+appended. It records one completed run; it never generates runs or invents
+measurements. Passing validation is not evidence that the task actually ran.
 
-```json
-{"run_id":"2026-07-10-boundary-C","task_id":"file-protocol-boundary","group":"C","correctness":1.0,"evidence_seconds":34,"investigation_commands":3,"context_units":1800,"context_unit":"tokens","stale_memory_misuses":0,"maintenance_seconds":5,"used_memory_ids":["example-memory-id"],"notes":"Opened one mail body; trace was unnecessary."}
+```bash
+python3 evals/record.py work/dogfood-results.jsonl \
+  --run-id 2026-07-10-boundary-C \
+  --task-id file-protocol-boundary \
+  --group C \
+  --correctness 1 \
+  --evidence-seconds 34 \
+  --investigation-commands 3 \
+  --context-units 1800 \
+  --context-unit tokens \
+  --stale-memory-misuses 0 \
+  --maintenance-seconds 5 \
+  --opened-memory-id first-memory-id \
+  --opened-memory-id second-memory-id \
+  --reused-memory-id first-memory-id \
+  --notes "Second body was opened but did not affect the result."
 ```
+
+Times are wall-clock seconds. `investigation_commands` counts repository,
+history, and file-discovery tool calls made before the first correct evidence.
+`context_units` can be tokens when the host reports them or one consistent
+character estimate otherwise. A reused id must also appear in opened ids. Groups
+A and B cannot record MemoBox ids, maintenance, or stale-memory misuse.
 
 ## Summarize
 
 ```bash
 python3 evals/summarize.py evals/example-results.jsonl
-python3 evals/summarize.py path/to/real-results.jsonl --json
+python3 evals/summarize.py work/dogfood-results.jsonl --json
 ```
 
 The first dogfood milestone passes when C, compared with the strongest A/B

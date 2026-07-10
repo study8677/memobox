@@ -31,10 +31,12 @@ Use MemoBox as an opt-in, index-first local file protocol. Read `.memobox` JSON 
    cat .memobox/traces/<memory-id>.jsonl
    ```
 5. Track `opened_memory_ids` separately from `reused_memory_ids`. A memory counts as reused only if it materially changes the plan, decision, implementation, or verification.
-6. Read the global index only when the user or task explicitly calls for cross-project experience:
+6. Read the global index when the user asks for prior/cross-project experience, when the project index has no useful record for a repeatable task, or when the task is likely to reuse portable setup, authentication, CI, deployment, plugin, toolchain, or incident knowledge:
    ```bash
-   cat "${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}/index.json"
+   test -f "${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}/index.json" && \
+     cat "${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}/index.json"
    ```
+7. Keep global provenance separate: track `opened_global_memory_ids` and `reused_global_memory_ids`. A global record still counts as reused only when it materially changes the work. Do not load global bodies merely because the index exists.
 
 ## End-Of-Task Write Loop
 
@@ -56,8 +58,12 @@ Use MemoBox as an opt-in, index-first local file protocol. Read `.memobox` JSON 
      --source-ref "memobox:<reused-memory-id>" \
      --json
    ```
-   Repeat `--source-ref "memobox:<id>"` for every materially reused memory. Omit fields that do not apply.
+   Repeat `--source-ref "memobox:<id>"` for every materially reused project memory. Use `--source-ref "memobox-global:<id>"` for a materially reused global memory. Omit fields that do not apply.
 6. Confirm the returned id exists in `.memobox/mails/<id>.json`.
+
+## Global Promotion Gate
+
+Promote a project memory only when its lesson is verified, useful outside the current workspace, understandable without private repository context, and safe to expose to other local projects. Keep the global index deliberately small. Do not promote project status reports, one-off paths, speculative advice, secrets, personal data, or raw confidential evidence. Review the exact body before promotion and preserve the generated source reference back to the project store.
 
 ## PreCompact Is Only A Safety Net
 

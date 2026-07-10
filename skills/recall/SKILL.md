@@ -28,10 +28,12 @@ Skip this skill for simple tasks, tasks with no likely persistent value, and sec
 6. Keep two task-local lists:
    - `opened_memory_ids`: bodies inspected.
    - `reused_memory_ids`: memories that materially changed the plan, decision, implementation, or verification.
-7. If the task produces a new high-value Memory Mail, pass each reused id as `--source-ref "memobox:<id>"`. Merely opening a memory does not make it reused, and reuse alone is not a reason to create a new record.
-8. Read the global index only when the user or task explicitly calls for cross-project experience:
+7. If the task produces a new high-value Memory Mail, pass each reused project id as `--source-ref "memobox:<id>"`. Merely opening a memory does not make it reused, and reuse alone is not a reason to create a new record.
+8. Read the global index when cross-project experience is explicit, the project index has no useful record for a repeatable task, or the task is likely to reuse portable setup, authentication, CI, deployment, plugin, toolchain, or incident knowledge:
    ```bash
-   cat "${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}/index.json"
+   test -f "${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}/index.json" && \
+     cat "${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}/index.json"
    ```
+9. Track `opened_global_memory_ids` separately from `reused_global_memory_ids`. Read only selected global bodies, and cite a materially reused global record as `--source-ref "memobox-global:<id>"` if the task produces a new Memory Mail.
 
 If the store is missing, initialize only when the user explicitly wants to start using MemoBox in that project.

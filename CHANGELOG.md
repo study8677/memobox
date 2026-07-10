@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added strict append-only recording for real A/B/C dogfood runs, with separate opened and materially reused memory ids.
+- Added `supersedes`, `last_verified_at`, and `valid_until` schema v2 signals while keeping schema v1 records readable.
+- Made superseding writes add provenance and stale-mark replaced records under the store lock.
+- Added a scoped global-memory read and promotion policy for portable cross-project knowledge.
+- Made promoted global records retain an absolute project-store provenance path.
+- Fixed the `uv run pytest` project import path and declared the uv development test dependency.
+
 ## 0.1.0 - 2026-07-10
 
 - Initial public alpha release.

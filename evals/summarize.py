@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import statistics
 import sys
 from collections import defaultdict
@@ -21,8 +22,146 @@ REQUIRED = {
     "context_unit",
     "stale_memory_misuses",
     "maintenance_seconds",
-    "used_memory_ids",
 }
+OPTIONAL = {
+    "notes",
+    # `used_memory_ids` is the v0.1 fixture field. New runs distinguish bodies
+    # opened from memories that materially changed the outcome.
+    "used_memory_ids",
+    "opened_memory_ids",
+    "reused_memory_ids",
+}
+ALLOWED = REQUIRED | OPTIONAL
+
+
+def _require_non_empty_string(value: Any, field: str, location: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{location}: {field} must be a non-empty string")
+
+
+def _require_number(
+    value: Any,
+    field: str,
+    location: str,
+    *,
+    minimum: float,
+    maximum: float | None = None,
+) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{location}: {field} must be a number")
+    if not math.isfinite(float(value)):
+        raise ValueError(f"{location}: {field} must be finite")
+    if float(value) < minimum or (maximum is not None and float(value) > maximum):
+        bounds = (
+            f"between {minimum:g} and {maximum:g}"
+            if maximum is not None
+            else f">= {minimum:g}"
+        )
+        raise ValueError(f"{location}: {field} must be {bounds}")
+
+
+def _require_non_negative_integer(value: Any, field: str, location: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{location}: {field} must be a non-negative integer")
+
+
+def _memory_ids(value: Any, field: str, location: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError(f"{location}: {field} must be an array")
+    for item in value:
+        _require_non_empty_string(item, f"{field} item", location)
+    if len(set(value)) != len(value):
+        raise ValueError(f"{location}: {field} must not contain duplicates")
+    return list(value)
+
+
+def validate_run(value: Any, *, location: str = "run") -> dict[str, Any]:
+    """Strictly validate and normalize one run without third-party packages."""
+
+    if not isinstance(value, dict):
+        raise ValueError(f"{location}: run must be a JSON object")
+    missing = REQUIRED - value.keys()
+    if missing:
+        raise ValueError(f"{location}: missing {', '.join(sorted(missing))}")
+    unknown = value.keys() - ALLOWED
+    if unknown:
+        raise ValueError(f"{location}: unknown {', '.join(sorted(unknown))}")
+
+    normalized = dict(value)
+    for field in ("run_id", "task_id", "context_unit"):
+        _require_non_empty_string(normalized[field], field, location)
+    if normalized["group"] not in GROUPS:
+        raise ValueError(f"{location}: group must be A, B, or C")
+    _require_number(
+        normalized["correctness"],
+        "correctness",
+        location,
+        minimum=0,
+        maximum=1,
+    )
+    for field in ("evidence_seconds", "maintenance_seconds"):
+        _require_number(normalized[field], field, location, minimum=0)
+    for field in (
+        "investigation_commands",
+        "context_units",
+        "stale_memory_misuses",
+    ):
+        _require_non_negative_integer(normalized[field], field, location)
+    if "notes" in normalized and not isinstance(normalized["notes"], str):
+        raise ValueError(f"{location}: notes must be a string")
+
+    has_new_memory_fields = bool(
+        {"opened_memory_ids", "reused_memory_ids"} & normalized.keys()
+    )
+    if has_new_memory_fields:
+        missing_memory_fields = {
+            "opened_memory_ids",
+            "reused_memory_ids",
+        } - normalized.keys()
+        if missing_memory_fields:
+            raise ValueError(
+                f"{location}: missing {', '.join(sorted(missing_memory_fields))}"
+            )
+        opened = _memory_ids(
+            normalized["opened_memory_ids"], "opened_memory_ids", location
+        )
+        reused = _memory_ids(
+            normalized["reused_memory_ids"], "reused_memory_ids", location
+        )
+    elif "used_memory_ids" in normalized:
+        # Preserve v0.1 example/results compatibility. Those runs did not
+        # distinguish opening from material reuse, so the old field means both.
+        reused = _memory_ids(
+            normalized["used_memory_ids"], "used_memory_ids", location
+        )
+        opened = list(reused)
+    else:
+        raise ValueError(f"{location}: missing opened_memory_ids, reused_memory_ids")
+    if "used_memory_ids" in normalized:
+        used = _memory_ids(normalized["used_memory_ids"], "used_memory_ids", location)
+        if has_new_memory_fields and used != reused:
+            raise ValueError(f"{location}: used_memory_ids must equal reused_memory_ids")
+    if not set(reused).issubset(opened):
+        raise ValueError(
+            f"{location}: reused_memory_ids must be a subset of opened_memory_ids"
+        )
+    normalized["opened_memory_ids"] = opened
+    normalized["reused_memory_ids"] = reused
+
+    if normalized["group"] in ("A", "B"):
+        if opened or reused:
+            raise ValueError(
+                f"{location}: group {normalized['group']} cannot use MemoBox ids"
+            )
+        if normalized["maintenance_seconds"] != 0:
+            raise ValueError(
+                f"{location}: group {normalized['group']} maintenance_seconds must be 0"
+            )
+        if normalized["stale_memory_misuses"] != 0:
+            raise ValueError(
+                f"{location}: group {normalized['group']} stale_memory_misuses must be 0"
+            )
+    return normalized
 
 
 def load_runs(path: Path) -> list[dict[str, Any]]:
@@ -31,14 +170,7 @@ def load_runs(path: Path) -> list[dict[str, Any]]:
         if not line.strip():
             continue
         value = json.loads(line)
-        missing = REQUIRED - value.keys()
-        if missing:
-            raise ValueError(f"line {line_number}: missing {', '.join(sorted(missing))}")
-        if value["group"] not in GROUPS:
-            raise ValueError(f"line {line_number}: group must be A, B, or C")
-        if not 0 <= float(value["correctness"]) <= 1:
-            raise ValueError(f"line {line_number}: correctness must be between 0 and 1")
-        runs.append(value)
+        runs.append(validate_run(value, location=f"line {line_number}"))
     if not runs:
         raise ValueError("results file contains no runs")
     return runs
@@ -52,7 +184,15 @@ def load_task_ids(path: Path) -> set[str]:
     values = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(values, list):
         raise ValueError("tasks file must contain a JSON array")
-    task_ids = {str(value["id"]) for value in values if isinstance(value, dict) and value.get("id")}
+    task_ids: set[str] = set()
+    for index, value in enumerate(values, 1):
+        if not isinstance(value, dict):
+            raise ValueError(f"task {index} must be a JSON object")
+        task_id = value.get("id")
+        _require_non_empty_string(task_id, "id", f"task {index}")
+        if task_id in task_ids:
+            raise ValueError(f"duplicate task id: {task_id}")
+        task_ids.add(task_id)
     if len(task_ids) != len(values):
         raise ValueError("every task must have one unique non-empty id")
     return task_ids
@@ -65,7 +205,8 @@ def summarize(runs: list[dict[str, Any]], expected_task_ids: set[str]) -> dict[s
     )
     run_ids: set[str] = set()
     context_units: set[str] = set()
-    for run in runs:
+    for index, raw_run in enumerate(runs, 1):
+        run = validate_run(raw_run, location=f"run {index}")
         if run["run_id"] in run_ids:
             raise ValueError(f"duplicate run_id: {run['run_id']}")
         run_ids.add(run["run_id"])
@@ -104,7 +245,8 @@ def summarize(runs: list[dict[str, Any]], expected_task_ids: set[str]) -> dict[s
             "median_context_units": median(rows, "context_units"),
             "stale_memory_misuses": sum(int(row["stale_memory_misuses"]) for row in rows),
             "median_maintenance_seconds": median(rows, "maintenance_seconds"),
-            "reuse_rate": sum(bool(row["used_memory_ids"]) for row in rows) / len(rows),
+            "opened_rate": sum(bool(row["opened_memory_ids"]) for row in rows) / len(rows),
+            "reuse_rate": sum(bool(row["reused_memory_ids"]) for row in rows) / len(rows),
         }
 
     best_time = min(metrics["A"]["median_evidence_seconds"], metrics["B"]["median_evidence_seconds"])
@@ -152,6 +294,7 @@ def render_text(report: dict[str, Any]) -> str:
             f"{group}: runs={item['runs']} correctness={item['mean_correctness']:.2f} "
             f"evidence={item['median_evidence_seconds']:.1f}s "
             f"commands={item['median_investigation_commands']:.1f} "
+            f"opened={item['opened_rate']:.0%} "
             f"reuse={item['reuse_rate']:.0%}"
         )
     comparison = report["comparison"]

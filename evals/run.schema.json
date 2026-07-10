@@ -14,7 +14,8 @@
     "context_unit",
     "stale_memory_misuses",
     "maintenance_seconds",
-    "used_memory_ids"
+    "opened_memory_ids",
+    "reused_memory_ids"
   ],
   "properties": {
     "run_id": {"type": "string", "minLength": 1},
@@ -27,7 +28,22 @@
     "context_unit": {"type": "string", "minLength": 1},
     "stale_memory_misuses": {"type": "integer", "minimum": 0},
     "maintenance_seconds": {"type": "number", "minimum": 0},
-    "used_memory_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "opened_memory_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "reused_memory_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "used_memory_ids": {
+      "description": "Deprecated v0.1 compatibility field; use reused_memory_ids.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
     "notes": {"type": "string"}
   }
 }
