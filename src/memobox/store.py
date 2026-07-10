@@ -220,11 +220,19 @@ class JsonMemoBoxStore:
         if self.lock_path.is_symlink():
             raise MemoBoxStoreError(f"Lock file must not be a symlink: {self.lock_path}")
         with self.lock_path.open("a+", encoding="utf-8") as lock_file:
+            self._ensure_lock_byte(lock_file)
             self._lock_file(lock_file)
             try:
                 yield
             finally:
                 self._unlock_file(lock_file)
+
+    def _ensure_lock_byte(self, lock_file: Any) -> None:
+        if os.fstat(lock_file.fileno()).st_size > 0:
+            return
+        lock_file.write("\0")
+        lock_file.flush()
+        os.fsync(lock_file.fileno())
 
     def _lock_file(self, lock_file: Any) -> None:
         if fcntl is not None:
@@ -232,11 +240,6 @@ class JsonMemoBoxStore:
             return
         if msvcrt is None:  # pragma: no cover - unsupported platform
             raise MemoBoxStoreError("No supported cross-process file locking API is available")
-        lock_file.seek(0)
-        if not lock_file.read(1):
-            lock_file.write("\0")
-            lock_file.flush()
-            os.fsync(lock_file.fileno())
         deadline = time.monotonic() + WINDOWS_LOCK_TIMEOUT_SECONDS
         while True:  # pragma: no cover - Windows
             try:
