@@ -38,6 +38,10 @@ def main(argv: list[str] | None = None, stdin_text: str | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if env_truthy("MEMOBOX_PRECOMPACT_DISABLED"):
+        print("memobox precompact hook skipped: disabled by environment", file=sys.stderr)
+        return 0
+
     cwd = Path.cwd()
     store_root = Path(args.store).expanduser()
     if not store_root.is_absolute():
@@ -75,17 +79,19 @@ def main(argv: list[str] | None = None, stdin_text: str | None = None) -> int:
         ],
         source_refs=[SourceRef(kind="codex-hook", ref=str(thread_ref or "precompact"), note="PreCompact hook payload")],
     )
+    trace_event: dict[str, Any] = {
+        "event": "codex_precompact",
+        "trigger": trigger,
+        "cwd": str(cwd),
+        "payload_metadata": selected_payload_fields(sanitized_payload),
+        "git": git,
+    }
+    if env_truthy("MEMOBOX_PRECOMPACT_INCLUDE_PAYLOAD"):
+        trace_event["payload"] = sanitized_payload
+
     stored = store.add_mail(
         mail,
-        raw_trace=[
-            {
-                "event": "codex_precompact",
-                "trigger": trigger,
-                "cwd": str(cwd),
-                "payload": sanitized_payload,
-                "git": git,
-            }
-        ],
+        raw_trace=[trace_event],
     )
     print(stored.id)
     return 0

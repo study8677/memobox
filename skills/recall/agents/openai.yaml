@@ -1,7 +1,7 @@
 interface:
   display_name: "Index MemoBox"
-  short_description: "Inspect project and global memory indexes"
+  short_description: "Read opted-in memory index first"
   brand_color: "#2563EB"
-  default_prompt: "Use $index-memory to inspect MemoBox JSON index files when useful."
+  default_prompt: "Use $index-memory at the start of non-trivial work when .memobox exists; let the model choose ids and track which memories materially affected the task."
 policy:
   allow_implicit_invocation: true

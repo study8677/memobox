@@ -1,7 +1,7 @@
 {
   "name": "memobox",
   "version": "0.1.0",
-  "description": "Model-readable local memory file protocol.",
+  "description": "Opt-in, index-first local memory files for AI agents.",
   "author": {
     "name": "fanjingwen",
     "url": "https://github.com/study8677"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "MemoBox",
-    "shortDescription": "Model-readable memory files",
-    "longDescription": "Use MemoBox skills to inspect index-first JSON memory files directly, write records, and curate local-first memory data with the memobox maintenance CLI.",
+    "shortDescription": "Opt-in, index-first agent memory",
+    "longDescription": "When a project already contains .memobox, use MemoBox skills to read its JSON index before non-trivial work, let the model choose what to reuse, and write only durable high-value outcomes with reusable memory ids recorded as source references.",
     "developerName": "fanjingwen",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,9 +30,9 @@
     ],
     "websiteURL": "https://github.com/study8677/memobox",
     "defaultPrompt": [
-      "Use MemoBox to inspect the project memory files.",
-      "Use MemoBox to write one memory record.",
-      "Use MemoBox to curate duplicate memories."
+      "In an opted-in project, use MemoBox index-first before non-trivial work.",
+      "At task end, write a MemoBox record only for a durable high-value outcome.",
+      "Use MemoBox to review checkpoints and curate exact memory ids."
     ],
     "brandColor": "#2563EB",
     "screenshots": []

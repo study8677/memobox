@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -150,8 +153,10 @@ def test_search_command_is_removed() -> None:
 
 def test_public_help_hides_legacy_commands() -> None:
     help_text = build_parser().format_help()
-    assert "{init,write,status,promote,curate}" in help_text
+    assert "{init,write,status,promote,curate,verify,rebuild-index}" in help_text
     assert "Write one Memory Mail record." in help_text
+    assert "Maintenance: verify file-protocol integrity" in help_text
+    assert "Maintenance: rebuild the derived index" in help_text
     assert "Read memory directly with Bash" in help_text
     assert "memobox index" not in help_text
     assert "memobox read" not in help_text
@@ -259,3 +264,196 @@ def test_curate_duplicates_and_merge(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert merged.decisions == ["A", "B"]
     assert store.open_mail("task-1").status == "archived"
     assert store.open_mail("task-2").status == "archived"
+
+
+def test_concurrent_subprocess_writes_keep_every_mail_in_index(tmp_path: Path) -> None:
+    store_dir = tmp_path / "concurrent"
+    source_root = Path(__file__).resolve().parents[1] / "src"
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        f"{source_root}{os.pathsep}{existing_pythonpath}"
+        if existing_pythonpath
+        else str(source_root)
+    )
+    script = """
+import sys
+from memobox.models import MemoryMail
+from memobox.store import JsonMemoBoxStore
+
+number = int(sys.argv[2])
+JsonMemoBoxStore(sys.argv[1]).add_mail(
+    MemoryMail(
+        id=f"concurrent-{number}",
+        subject=f"Concurrent {number}",
+        summary=f"Concurrent summary {number}",
+    )
+)
+"""
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", script, str(store_dir), str(number)],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for number in range(32)
+    ]
+    failures: list[str] = []
+    for process in processes:
+        stdout, stderr = process.communicate(timeout=30)
+        if process.returncode != 0:
+            failures.append(f"stdout={stdout!r} stderr={stderr!r}")
+
+    assert failures == []
+    store = JsonMemoBoxStore(store_dir)
+    assert {entry.id for entry in store.list_index()} == {
+        f"concurrent-{number}" for number in range(32)
+    }
+    assert len(list(store.mails_dir.glob("*.json"))) == 32
+    assert list(store.root.rglob("*.tmp")) == []
+    assert store.verify()["ok"] is True
+
+
+def test_verify_and_rebuild_index_recover_orphan_mail_and_corrupt_index(
+    tmp_path: Path,
+) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+    store.add_mail(make_mail(1))
+    orphan = make_mail(2)
+    store.mail_path(orphan.id).write_text(
+        json.dumps(orphan.to_dict(), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    store.index_path.write_text("{not-json", encoding="utf-8")
+
+    verification = store.verify()
+    assert verification["ok"] is False
+    assert {issue["code"] for issue in verification["issues"]} >= {
+        "invalid_index",
+        "missing_index_entry",
+    }
+
+    rebuilt = store.rebuild_index()
+    assert rebuilt["rebuilt"] is True
+    assert rebuilt["ok"] is True
+    assert {entry.id for entry in store.list_index()} == {"task-1", "task-2"}
+
+
+def test_rebuild_index_refuses_partial_result_when_any_mail_is_corrupt(
+    tmp_path: Path,
+) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+    store.add_mail(make_mail(1))
+    original_index = store.index_path.read_bytes()
+    (store.mails_dir / "broken.json").write_text("{broken", encoding="utf-8")
+
+    report = store.rebuild_index()
+
+    assert report["rebuilt"] is False
+    assert report["ok"] is False
+    assert any(issue["code"] == "invalid_mail" for issue in report["issues"])
+    assert store.index_path.read_bytes() == original_index
+
+
+def test_verify_detects_stale_dangling_index_and_invalid_trace(tmp_path: Path) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+    store.add_mail(make_mail(1))
+    index = json.loads(store.index_path.read_text(encoding="utf-8"))
+    index[0]["summary"] = "stale"
+    index.append(make_mail(2).to_index_entry().to_dict())
+    store.index_path.write_text(json.dumps(index), encoding="utf-8")
+    store.trace_path("task-1").write_text("not-json\n", encoding="utf-8")
+
+    report = store.verify()
+    codes = {issue["code"] for issue in report["issues"]}
+    assert {"stale_index_entry", "dangling_index_entry", "invalid_trace"} <= codes
+
+
+def test_cli_verify_and_rebuild_index_have_json_reports_and_exit_codes(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+    store.add_mail(make_mail(1))
+
+    assert main(["--store", str(store.root), "verify", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["ok"] is True
+
+    store.index_path.write_text("[]\n", encoding="utf-8")
+    assert main(["--store", str(store.root), "verify", "--json"]) == 1
+    broken_report = json.loads(capsys.readouterr().out)
+    assert broken_report["issues"][0]["code"] == "missing_index_entry"
+
+    assert main(["--store", str(store.root), "rebuild-index", "--json"]) == 0
+    rebuilt_report = json.loads(capsys.readouterr().out)
+    assert rebuilt_report["rebuilt"] is True
+    assert rebuilt_report["ok"] is True
+
+
+def test_mail_ids_cannot_escape_store_and_body_id_must_match_filename(
+    tmp_path: Path,
+) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+    store.initialize()
+    unsafe_ids = [".", "..", "../escape", "a/b", r"a\b", "/tmp/escape", "a" * 129]
+    with pytest.raises(ValueError, match="Memory mail id"):
+        store.mail_path("")
+    for unsafe_id in unsafe_ids:
+        with pytest.raises(ValueError, match="Memory mail id"):
+            store.mail_path(unsafe_id)
+        with pytest.raises(ValueError, match="Memory mail id"):
+            store.add_mail(make_mail(1, id=unsafe_id))
+
+    malicious = make_mail(1, id="../../escape").to_dict()
+    store.mail_path("safe").write_text(json.dumps(malicious), encoding="utf-8")
+    with pytest.raises(MemoBoxStoreError, match="does not match filename"):
+        store.open_mail("safe")
+    with pytest.raises(MemoBoxStoreError, match="mail bodies are invalid"):
+        store.update_status("safe", "archived")
+    assert not (tmp_path / "escape.json").exists()
+
+
+def test_confidence_must_be_finite_and_between_zero_and_one() -> None:
+    assert make_mail(1, confidence=0.0).confidence == 0.0
+    assert make_mail(1, confidence=1.0).confidence == 1.0
+    for invalid in [-0.1, 1.1, float("nan"), float("inf"), float("-inf"), True]:
+        with pytest.raises(ValueError, match="Confidence"):
+            make_mail(1, confidence=invalid)
+    with pytest.raises(ValueError, match="Confidence"):
+        MemoryMail.from_dict(make_mail(1).to_dict() | {"confidence": True})
+
+
+def test_invalid_trace_event_does_not_truncate_existing_trace(tmp_path: Path) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+    store.add_mail(make_mail(1), raw_trace=[{"event": "kept"}])
+    original = store.trace_path("task-1").read_bytes()
+
+    with pytest.raises(TypeError, match="dictionaries or strings"):
+        store.write_raw_trace("task-1", [object()])  # type: ignore[list-item]
+
+    assert store.trace_path("task-1").read_bytes() == original
+    assert list(store.traces_dir.glob("*.tmp")) == []
+
+
+def test_trace_requires_an_existing_mail_body(tmp_path: Path) -> None:
+    store = JsonMemoBoxStore(tmp_path / "memobox")
+
+    with pytest.raises(KeyError, match="Memory mail body not found"):
+        store.write_raw_trace("missing", [{"event": "orphan"}])
+
+    assert not store.trace_path("missing").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows symlink creation may require privileges")
+def test_store_data_directories_cannot_be_symlinks(tmp_path: Path) -> None:
+    store_root = tmp_path / "memobox"
+    outside = tmp_path / "outside"
+    store_root.mkdir()
+    outside.mkdir()
+    (store_root / "mails").symlink_to(outside, target_is_directory=True)
+    store = JsonMemoBoxStore(store_root)
+
+    with pytest.raises(MemoBoxStoreError, match="Store directory must not be a symlink"):
+        store.initialize()

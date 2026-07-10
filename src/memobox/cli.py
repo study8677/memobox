@@ -30,6 +30,10 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_promote(store, args)
         if args.command == "curate":
             return cmd_curate(store, args)
+        if args.command == "verify":
+            return cmd_verify(store, args)
+        if args.command == "rebuild-index":
+            return cmd_rebuild_index(store, args)
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -48,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--store", default=".memobox", help="MemoBox storage directory.")
-    public_commands = "{init,write,status,promote,curate}"
+    public_commands = "{init,write,status,promote,curate,verify,rebuild-index}"
     subparsers = parser.add_subparsers(dest="command", required=True, metavar=public_commands)
 
     subparsers.add_parser("init", help="Initialize a memobox store.")
@@ -88,6 +92,18 @@ def build_parser() -> argparse.ArgumentParser:
     merge.add_argument("--tags", default="")
     merge.add_argument("--archive-sources", action=argparse.BooleanOptionalAction, default=True)
     merge.add_argument("--json", action="store_true")
+
+    verify = subparsers.add_parser(
+        "verify",
+        help="Maintenance: verify file-protocol integrity without changing records.",
+    )
+    verify.add_argument("--json", action="store_true", help="Print a machine-readable report.")
+
+    rebuild = subparsers.add_parser(
+        "rebuild-index",
+        help="Maintenance: rebuild the derived index from valid mail bodies.",
+    )
+    rebuild.add_argument("--json", action="store_true", help="Print a machine-readable report.")
 
     return parser
 
@@ -276,6 +292,25 @@ def cmd_curate_merge(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_verify(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
+    report = store.verify()
+    if args.json:
+        print_json(report)
+    else:
+        print_verification_report(report, action="verified")
+    return 0 if report["ok"] else 1
+
+
+def cmd_rebuild_index(store: JsonMemoBoxStore, args: argparse.Namespace) -> int:
+    report = store.rebuild_index()
+    if args.json:
+        print_json(report)
+    else:
+        action = "rebuilt" if report["rebuilt"] else "not rebuilt"
+        print_verification_report(report, action=action)
+    return 0 if report["ok"] and report["rebuilt"] else 1
+
+
 def parse_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
@@ -329,6 +364,16 @@ def read_raw_trace(path: str) -> list[dict[str, Any] | str]:
 
 def print_json(payload: Any) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+
+
+def print_verification_report(report: dict[str, Any], action: str) -> None:
+    print(
+        f"{action}: {report['valid_mails']} valid mails, "
+        f"{report['valid_index_entries']} valid index entries, "
+        f"{report['trace_files']} traces"
+    )
+    for issue in report["issues"]:
+        print(f"{issue['code']}\t{issue['path']}\t{issue['message']}")
 
 
 def normalize_duplicate_key(value: str) -> str:

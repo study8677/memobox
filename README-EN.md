@@ -6,7 +6,7 @@
 
 Give models a local-first memory file protocol they can inspect with Bash: `index.json` first, then body and evidence files only when they choose. The CLI only writes and maintains consistency.
 
-[中文](README.md) · [Schema](docs/schema.md) · [Example](examples/demo.py) · [GitHub](https://github.com/study8677/memobox)
+[中文](README.md) · [Schema](docs/schema.md) · [Dogfooding](docs/dogfooding.md) · [Example](examples/demo.py) · [GitHub](https://github.com/study8677/memobox)
 
 [![CI](https://github.com/study8677/memobox/actions/workflows/ci.yml/badge.svg)](https://github.com/study8677/memobox/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
@@ -53,8 +53,9 @@ MemoBox turns long model-visible history into progressive disclosure:
 subject -> summary -> memory body -> raw evidence
 ```
 
-The first version focuses on four promises:
+The first version focuses on five promises:
 
+- **Opt-in agent loop**: an existing `.memobox` enables the project loop; non-trivial work reads the index first and writes only high-value outcomes at the end.
 - **Index-first**: expose the `index.json` directory before full bodies and evidence.
 - **Memory mail**: store decisions, artifacts, risks, and next actions as structured memory records.
 - **Evidence-aware**: open `Memory Mail` or `Raw Trace` only when more evidence is needed.
@@ -111,13 +112,13 @@ MemoBox can work with mem0, RAG, Obsidian, and logs. mem0 is better for user pre
 | Raw trace on demand | Conversation/tool/terminal evidence opens only when requested |
 | Team-ready metadata | Built-in `project`, `workspace`, `team`, `role`, `participants` |
 | Memory maintenance | `pinned`, `needs_review`, `archived`, `stale` |
-| Maintenance CLI | Pure Python CLI for writes, status sync, promotion, and merging |
+| Maintenance CLI | Pure Python CLI for writes, status sync, promotion, merging, verification, and index rebuilds |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A["Model decides to inspect memory"] --> B["Read MemoBox Index<br/>index.json"]
+    A["Non-trivial task + existing .memobox"] --> B["Read MemoBox Index<br/>index.json"]
     B --> C{"Need a body?"}
     C -- "No" --> D["Continue with index-level context"]
     C -- "Yes" --> E["Read Memory Mail<br/>mails/&lt;id&gt;.json"]
@@ -136,10 +137,15 @@ The test suite verifies `index.json` stores only index-level data and does not m
 
 ## Quick Start
 
+Prefer an isolated user-level tool installation:
+
 ```bash
-git clone https://github.com/study8677/memobox.git
-cd memobox
-python3 -m pip install -e ".[test]"
+uv tool install "git+https://github.com/study8677/memobox.git"
+
+# Or
+pipx install "git+https://github.com/study8677/memobox.git"
+
+memobox --help
 ```
 
 Initialize:
@@ -180,6 +186,32 @@ Read raw trace by id:
 cat .memobox/traces/<memory-id>.jsonl
 ```
 
+## Agent Use Loop
+
+An existing `.memobox` directory is the project's opt-in signal. Installing the CLI or plugin does not create stores across every repository. If the directory is missing, the agent continues normally and runs `memobox --store .memobox init` only after the user explicitly opts in.
+
+In an opted-in project, the agent follows this loop:
+
+1. Skip simple lookups, formatting, and one-off mechanical work. Also skip security-restricted or sensitive tasks unless the user explicitly authorizes safe, redacted persistence.
+2. At the start of non-trivial work, read `.memobox/index.json`. The model then uses subjects, summaries, tags, status, and timestamps to choose whether to open specific bodies. MemoBox does not rank, filter, or decide relevance.
+3. Read `traces/<id>.jsonl` only when evidence is required. Track opened ids separately from reused ids; a memory is reused only when it materially affects the plan, decision, implementation, or verification.
+4. At task end, apply a strict worthiness gate. Save only durable decisions, non-obvious verified causes and fixes, reusable exact evidence, important risks, or cross-session handoffs. Most tasks should write zero or one record.
+5. If a new Memory Mail reused older memories, add `--source-ref "memobox:<id>"` for every materially reused id. Never create a low-value record merely to log reuse.
+
+```bash
+memobox --store .memobox write \
+  --subject "Fix concurrent index writes" \
+  --summary "Added locking and atomic replacement after reproducing lost index entries." \
+  --project memobox \
+  --body "Verified the failure with a concurrent write reproduction and the fix with regression tests." \
+  --decision "Treat mail bodies as durable records and keep index updates consistent." \
+  --artifact "file:src/memobox/store.py" \
+  --source-ref "memobox:<reused-memory-id>" \
+  --json
+```
+
+See [docs/dogfooding.md](docs/dogfooding.md) for the two-week process, run-log fields, metric definitions, and acceptance gates.
+
 ## Python API
 
 ```python
@@ -219,6 +251,8 @@ MemoBox exposes a local file protocol, not an orchestration layer. A model with 
 | `memobox promote <id>` | Copy reusable memory into a global store |
 | `memobox curate duplicates` | Find likely duplicate memories |
 | `memobox curate merge ...` | Merge memories and archive sources |
+| `memobox verify` | Read-only cross-file integrity check for bodies, index, and traces |
+| `memobox rebuild-index` | Atomically rebuild the derived index from valid `mails/*.json` truth |
 
 Recommended project/global layout:
 
@@ -304,7 +338,10 @@ The first MemoBox plugin is a **skills-only plugin**. It does not start an MCP s
 Install the CLI first:
 
 ```bash
-python3 -m pip install --user git+https://github.com/study8677/memobox.git
+uv tool install "git+https://github.com/study8677/memobox.git"
+
+# Or
+pipx install "git+https://github.com/study8677/memobox.git"
 ```
 
 Install in Claude Code:
@@ -338,16 +375,20 @@ Codex: $using-memobox
 
 Defaults:
 
+- Opt-in signal: `.memobox` already exists in the current repository; the plugin does not initialize every project
 - Project memory: `.memobox` in the current repository
 - Global memory: `${MEMOBOX_GLOBAL_STORE:-$HOME/.memobox-global}`
-- Reads: open `index.json`, `mails/<id>.json`, and `traces/<id>.jsonl` directly
-- Writes/maintenance: use `memobox write/status/promote/curate`
+- Start of non-trivial work: read `index.json` first, then let the model choose bodies and evidence
+- Task end: write structured results with `memobox write` only after the worthiness gate; record materially reused ids in `source_refs`
+- Simple, sensitive, or non-durable tasks: do not read or write MemoBox
+- Maintenance: use `memobox status/promote/curate/verify/rebuild-index`
 
-Before Codex automatically compacts context, the plugin can write a checkpoint memory through a `PreCompact(auto)` hook:
+Before Codex automatically compacts context, the plugin can write a checkpoint memory through a `PreCompact(auto)` hook. This is only a loss-prevention safety net and does not replace a deliberate, high-quality end-of-task write:
 
 - It writes only when the current repository already has `.memobox`, so installing the plugin does not create memory stores everywhere.
 - The checkpoint is marked `needs_review` and tagged with `codex`, `precompact`, `context`, and `checkpoint`.
-- The record includes the hook payload, current working directory, and git status. MemoBox does not promise full pre-compaction transcript capture unless Codex includes transcript content in the hook input.
+- By default the record keeps only selected hook metadata, the current working directory, and git status; it does not persist the full payload. Set `MEMOBOX_PRECOMPACT_INCLUDE_PAYLOAD=1` only to explicitly retain the basically redacted payload. Even then, MemoBox does not claim to receive the complete transcript.
+- For sensitive or security-restricted work, set `MEMOBOX_PRECOMPACT_DISABLED=1` to skip automatic checkpoints for the session.
 - Set `MEMOBOX_PRECOMPACT_INIT=1` if you want the hook to initialize a missing store automatically.
 
 ## Who It Is For
@@ -363,13 +404,14 @@ Before Codex automatically compacts context, the plugin can write a checkpoint m
 **Storage**
 
 - [x] Local JSON store
+- [x] Cross-process write lock, atomic replacement, and rebuildable derived index
 - [ ] SQLite backend
 - [ ] Schema migration
 
 **Storage Interface**
 
 - [x] Index-first local file protocol
-- [x] Maintenance CLI: `write`, `status`, `promote`, `curate`
+- [x] Maintenance CLI: `write`, `status`, `promote`, `curate`, `verify`, `rebuild-index`
 - [ ] Better index organization and lifecycle views
 
 **Model Integration**
@@ -377,6 +419,8 @@ Before Codex automatically compacts context, the plugin can write a checkpoint m
 - [x] CLI: `init`, `write`, `status`, `promote`, `curate`
 - [x] Claude Code / Codex skills-only plugin
 - [x] Codex `PreCompact(auto)` checkpoint hook
+- [x] `.memobox` opt-in + index-first + high-value write agent loop
+- [ ] Dogfood 20 real tasks across three active projects
 - [ ] MCP server for Codex, Claude Desktop, Cursor
 
 **UX / Trust**
@@ -389,6 +433,8 @@ Before Codex automatically compacts context, the plugin can write a checkpoint m
 ## Development
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 python3 -m pip install -e ".[test]"
 python3 -m pytest -q
 PYTHONPATH=src python3 examples/demo.py
@@ -402,6 +448,7 @@ MemoBox's core promise is the index-first file protocol, so tests verify both wr
 - `mails/<id>.json` contains the Memory Mail body.
 - `traces/<id>.jsonl` contains Raw Trace evidence.
 - The CLI no longer wraps read commands.
+- Concurrent subprocess writes preserve every index entry, and a damaged index can be rebuilt safely from valid mail bodies.
 
 ## Contributing
 

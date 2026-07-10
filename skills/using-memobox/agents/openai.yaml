@@ -1,7 +1,7 @@
 interface:
   display_name: "Using MemoBox"
-  short_description: "Use MemoBox memory files"
+  short_description: "Run the opt-in memory loop"
   brand_color: "#2563EB"
-  default_prompt: "Use $using-memobox to inspect MemoBox files, write records, or maintain memories."
+  default_prompt: "Use $using-memobox for non-trivial work when .memobox already exists: read the index first, reuse selected memories, and write only durable high-value outcomes."
 policy:
   allow_implicit_invocation: true

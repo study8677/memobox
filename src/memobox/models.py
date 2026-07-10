@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+import math
 from typing import Any, Literal
 
 MemoryStatus = Literal["inbox", "pinned", "archived", "stale", "needs_review"]
@@ -72,13 +73,16 @@ class IndexEntry:
     def __post_init__(self) -> None:
         validate_status(self.status)
         validate_importance(self.importance)
+        validate_confidence(self.confidence)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "IndexEntry":
         status = str(data.get("status", "inbox"))
         importance = str(data.get("importance", "normal"))
+        confidence = data.get("confidence", 1.0)
         validate_status(status)
         validate_importance(importance)
+        validate_confidence(confidence)
         return cls(
             schema_version=int(data.get("schema_version", SCHEMA_VERSION)),
             id=str(data["id"]),
@@ -92,7 +96,7 @@ class IndexEntry:
             participants=[str(item) for item in data.get("participants", [])],
             importance=importance,  # type: ignore[arg-type]
             status=status,  # type: ignore[arg-type]
-            confidence=float(data.get("confidence", 1.0)),
+            confidence=float(confidence),
             created_at=str(data.get("created_at") or utc_now_iso()),
             updated_at=str(data.get("updated_at") or utc_now_iso()),
         )
@@ -128,13 +132,16 @@ class MemoryMail:
     def __post_init__(self) -> None:
         validate_status(self.status)
         validate_importance(self.importance)
+        validate_confidence(self.confidence)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "MemoryMail":
         status = str(data.get("status", "inbox"))
         importance = str(data.get("importance", "normal"))
+        confidence = data.get("confidence", 1.0)
         validate_status(status)
         validate_importance(importance)
+        validate_confidence(confidence)
         return cls(
             schema_version=int(data.get("schema_version", SCHEMA_VERSION)),
             id=str(data["id"]),
@@ -148,7 +155,7 @@ class MemoryMail:
             participants=[str(item) for item in data.get("participants", [])],
             importance=importance,  # type: ignore[arg-type]
             status=status,  # type: ignore[arg-type]
-            confidence=float(data.get("confidence", 1.0)),
+            confidence=float(confidence),
             created_at=str(data.get("created_at") or utc_now_iso()),
             updated_at=str(data.get("updated_at") or utc_now_iso()),
             context=str(data.get("context", "")),
@@ -195,3 +202,10 @@ def validate_importance(importance: str) -> None:
     if importance not in VALID_IMPORTANCE:
         allowed = ", ".join(sorted(VALID_IMPORTANCE))
         raise ValueError(f"Invalid importance {importance!r}. Expected one of: {allowed}")
+
+
+def validate_confidence(confidence: float) -> None:
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+        raise ValueError("Confidence must be a finite number between 0.0 and 1.0")
+    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+        raise ValueError("Confidence must be a finite number between 0.0 and 1.0")
